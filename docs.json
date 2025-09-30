@@ -3,9 +3,9 @@
   "theme": "maple",
   "name": "Tutorbloc",
   "colors": {
-    "primary": "#3963A4",
+    "primary": "#2E3B51",
     "light": "#C9DAF8",
-    "dark": "#2E3B51"
+    "dark": "#3963A4"
   },
   "favicon": "/favicon.svg",
   "navigation": {
