@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TutorBloc API Route Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f1117; color: #e1e4e8; padding: 32px; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+  .legend { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .filters { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; color: #c9d1d9; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+  .filter-btn:hover, .filter-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; }
+  .stat-num { font-size: 24px; font-weight: 700; color: #58a6ff; }
+  .stat-label { font-size: 12px; color: #8b949e; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
+  .group { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .group:hover { border-color: #58a6ff; }
+  .group-header { padding: 14px 16px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .group-title { font-size: 15px; font-weight: 600; color: #fff; }
+  .group-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .group-controller { font-size: 12px; color: #8b949e; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .group-body { padding: 0; }
+  .route { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid #21262d; gap: 10px; font-size: 13px; transition: background 0.15s; }
+  .route:last-child { border-bottom: none; }
+  .route:hover { background: #1c2128; }
+  .method { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; min-width: 52px; text-align: center; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .method-GET { background: #1a4731; color: #3fb950; }
+  .method-POST { background: #3d2e00; color: #d29922; }
+  .method-PUT { background: #0c2d6b; color: #58a6ff; }
+  .method-DELETE { background: #4a1219; color: #f85149; }
+  .path { font-family: 'SF Mono', 'Fira Code', monospace; color: #c9d1d9; flex: 1; }
+  .action { font-size: 12px; color: #8b949e; font-family: 'SF Mono', 'Fira Code', monospace; text-align: right; white-space: nowrap; }
+  .middleware-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .mw-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #30363d; color: #8b949e; }
+  .mw-tag.auth { background: #1a3a2a; color: #3fb950; }
+  .mw-tag.public { background: #3d2e00; color: #d29922; }
+  .mw-tag.internal { background: #4a1219; color: #f85149; }
+  .mw-tag.web-api { background: #0c2d6b; color: #58a6ff; }
+  .mw-tag.signed { background: #2d1a4e; color: #bc8cff; }
+  .version-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .version-current { background: #1a4731; color: #3fb950; }
+  .version-legacy { background: #3d2e00; color: #d29922; }
+  .version-web { background: #0c2d6b; color: #58a6ff; }
+  .hidden { display: none !important; }
+  .search-box { padding: 8px 14px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; font-size: 14px; width: 300px; margin-bottom: 24px; outline: none; }
+  .search-box:focus { border-color: #58a6ff; }
+  .search-box::placeholder { color: #484f58; }
+  .toolbar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<h1>TutorBloc API Route Map</h1>
+<p class="subtitle">Interactive diagram of all API routes, controllers, and middleware</p>
+
+<div class="stats" id="stats">
+  <div class="stat"><div class="stat-num" id="total-routes">0</div><div class="stat-label">Total Routes</div></div>
+  <div class="stat"><div class="stat-num" id="total-controllers">0</div><div class="stat-label">Controllers</div></div>
+  <div class="stat"><div class="stat-num" id="total-get">0</div><div class="stat-label">GET</div></div>
+  <div class="stat"><div class="stat-num" id="total-post">0</div><div class="stat-label">POST</div></div>
+  <div class="stat"><div class="stat-num" id="total-put">0</div><div class="stat-label">PUT</div></div>
+  <div class="stat"><div class="stat-num" id="total-delete">0</div><div class="stat-label">DELETE</div></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div> GET</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#d29922"></div> POST</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#58a6ff"></div> PUT</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f85149"></div> DELETE</div>
+  <div class="legend-item"><span class="mw-tag auth">auth:api</span> Authenticated</div>
+  <div class="legend-item"><span class="mw-tag public">public</span> No auth</div>
+  <div class="legend-item"><span class="mw-tag web-api">web.api</span> Hybrid auth</div>
+  <div class="legend-item"><span class="mw-tag internal">internal</span> Admin only</div>
+  <div class="legend-item"><span class="mw-tag signed">signed</span> Signed URL</div>
+</div>
+
+<div class="toolbar">
+  <input type="text" class="search-box" id="search" placeholder="Search routes, controllers, paths..." oninput="filterRoutes()">
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all')">All</button>
+    <button class="filter-btn" onclick="setFilter('current')">Current API</button>
+    <button class="filter-btn" onclick="setFilter('legacy')">Legacy v1</button>
+    <button class="filter-btn" onclick="setFilter('web')">Web</button>
+    <button class="filter-btn" onclick="setFilter('public')">Public</button>
+    <button class="filter-btn" onclick="setFilter('auth')">Authenticated</button>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const routeGroups = [
+  // ===== CURRENT API (api.php) =====
+  {
+    title: "Auth", controller: "Auth\\LoginController, RegisterController, ForgotPasswordController",
+    version: "current", prefix: "/api/auth",
+    routes: [
+      { method: "POST", path: "/api/auth/login", action: "LoginController@login", mw: ["public"] },
+      { method: "POST", path: "/api/auth/logout", action: "LoginController@logout", mw: ["public"] },
+      { method: "POST", path: "/api/auth/register", action: "RegisterController@register", mw: ["public"] },
+      { method: "POST", path: "/api/auth/forgot", action: "ForgotPasswordController@sendResetLinkEmail", mw: ["public"] },
+      { method: "DELETE", path: "/api/auth", action: "LoginController@delete", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "Users", controller: "UserController",
+    version: "current", prefix: "/api/users",
+    routes: [
+      { method: "GET", path: "/api/users/{email}/validate", action: "UserController@validateUser", mw: ["public"] },
+      { method: "GET", path: "/api/users/{username}", action: "UserController@getUserByUsername", mw: ["public"] },
+      { method: "GET", path: "/api/users/username/claim/{id}", action: "UserController@claimUsername", mw: ["signed"] },
+      { method: "PUT", path: "/api/users/{id}", action: "UserController@update", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Tutors", controller: "TutorController",
+    version: "current", prefix: "/api/tutors",
+    routes: [
+      { method: "GET", path: "/api/tutors/{id?}", action: "TutorController@show", mw: ["auth", "internal"] },
+      { method: "GET", path: "/api/tutors/{id?}/profile", action: "TutorController@showProfile", mw: ["public"] },
+      { method: "GET", path: "/api/tutors/{id}/review", action: "TutorController@createReview", mw: ["web-api"] },
+      { method: "POST", path: "/api/tutors/{id}/review", action: "TutorController@storeReview", mw: ["web-api"] },
+    ]
+  },
+  {
+    title: "Bookings", controller: "BookingController",
+    version: "current", prefix: "/api/bookings",
+    routes: [
+      { method: "GET", path: "/api/bookings", action: "BookingController@index", mw: ["auth"] },
+      { method: "GET", path: "/api/bookings/self", action: "BookingController@indexSelf", mw: ["auth"] },
+      { method: "POST", path: "/api/bookings", action: "BookingController@store", mw: ["auth"] },
+      { method: "GET", path: "/api/bookings/{id}", action: "BookingController@show", mw: ["web-api"] },
+      { method: "PUT", path: "/api/bookings/{id}", action: "BookingController@update", mw: ["web-api"] },
+      { method: "PUT", path: "/api/bookings/{id}/cancel", action: "BookingController@cancel", mw: ["web-api"] },
+    ]
+  },
+  {
+    title: "Lessons", controller: "LessonController",
+    version: "current", prefix: "/api/lessons",
+    routes: [
+      { method: "GET", path: "/api/lessons/{id}", action: "LessonController@show", mw: ["web-api"] },
+      { method: "GET", path: "/api/lessons/{id}/edit", action: "LessonController@edit", mw: ["web-api"] },
+      { method: "GET", path: "/api/lessons/{id}/approve", action: "LessonController@approve", mw: ["web-api"] },
+      { method: "GET", path: "/api/lessons/{id}/cancel", action: "LessonController@cancel", mw: ["web-api"] },
+    ]
+  },
+  {
+    title: "Payments", controller: "PaymentController",
+    version: "current", prefix: "/api/payments",
+    routes: [
+      { method: "POST", path: "/api/payments/pay", action: "PaymentController@pay", mw: ["auth"] },
+      { method: "GET", path: "/api/payments/{id}/status", action: "PaymentController@getStatus", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Cards", controller: "CardController",
+    version: "current", prefix: "/api/cards",
+    routes: [
+      { method: "GET", path: "/api/cards", action: "CardController@index", mw: ["auth"] },
+      { method: "POST", path: "/api/cards", action: "CardController@store", mw: ["auth"] },
+      { method: "POST", path: "/api/cards/validate", action: "CardController@validateCard", mw: ["public"] },
+      { method: "DELETE", path: "/api/cards/{id}", action: "CardController@destroy", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "Bank Accounts", controller: "BankAccountController",
+    version: "current", prefix: "/api/bank-accounts",
+    routes: [
+      { method: "GET", path: "/api/bank-accounts", action: "BankAccountController@index", mw: ["auth"] },
+      { method: "POST", path: "/api/bank-accounts", action: "BankAccountController@store", mw: ["auth"] },
+      { method: "DELETE", path: "/api/bank-accounts/{id}", action: "BankAccountController@destroy", mw: ["auth"] },
+      { method: "POST", path: "/api/bank-accounts/link", action: "BankAccountController@link", mw: ["auth", "internal"] },
+    ]
+  },
+  {
+    title: "Coupons", controller: "CouponController",
+    version: "current", prefix: "/api/coupons",
+    routes: [
+      { method: "GET", path: "/api/coupons", action: "CouponController@getCoupons", mw: ["auth"] },
+      { method: "GET", path: "/api/coupons/{uid}/validate", action: "CouponController@validateCoupon", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "Availability", controller: "AvailabilityController",
+    version: "current", prefix: "/api/availabilites",
+    routes: [
+      { method: "GET", path: "/api/availabilites", action: "AvailabilityController@index", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Lesson Price", controller: "LessonPriceController",
+    version: "current", prefix: "/api/lesson-price",
+    routes: [
+      { method: "GET", path: "/api/lesson-price", action: "LessonPriceController@getLessonPrice", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Lesson Locations", controller: "LessonLocationController",
+    version: "current", prefix: "/api/lesson-locations",
+    routes: [
+      { method: "GET", path: "/api/lesson-locations", action: "LessonLocationController@index", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Children", controller: "ChildController",
+    version: "current", prefix: "/api/children",
+    routes: [
+      { method: "GET", path: "/api/children", action: "ChildController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/children", action: "ChildController@store", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "Addresses", controller: "AddressController",
+    version: "current", prefix: "/api/addresses",
+    routes: [
+      { method: "GET", path: "/api/addresses/search", action: "AddressController@searchPostCode", mw: ["public"] },
+      { method: "GET", path: "/api/addresses", action: "AddressController@index", mw: ["auth"] },
+      { method: "POST", path: "/api/addresses", action: "AddressController@store", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "Mobile Numbers", controller: "MobileController",
+    version: "current", prefix: "/api/mobile-numbers",
+    routes: [
+      { method: "GET", path: "/api/mobile-numbers/code", action: "MobileController@requestCode", mw: ["public"] },
+      { method: "GET", path: "/api/mobile-numbers/verify", action: "MobileController@verify", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Teaches", controller: "TeachController",
+    version: "current", prefix: "/api/teaches",
+    routes: [
+      { method: "GET", path: "/api/teaches", action: "TeachController@index", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Countries", controller: "CountryController",
+    version: "current", prefix: "/api/countries",
+    routes: [
+      { method: "GET", path: "/api/countries", action: "CountryController@all", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Subscriptions", controller: "SubscriptionsController",
+    version: "current", prefix: "/api/subscriptions",
+    routes: [
+      { method: "POST", path: "/api/subscriptions", action: "SubscriptionsController@store", mw: ["web-api"] },
+      { method: "GET", path: "/api/subscriptions/portal", action: "SubscriptionsController@getPortal", mw: ["auth"] },
+      { method: "POST", path: "/api/subscriptions/webhooks", action: "SubscriptionsController@updateSubscriptions", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Calendars", controller: "CalendarController",
+    version: "current", prefix: "/api/calendars",
+    routes: [
+      { method: "GET", path: "/api/calendars", action: "CalendarController@all", mw: ["public"] },
+      { method: "PUT", path: "/api/calendars/{id}", action: "CalendarController@update", mw: ["public"] },
+      { method: "GET", path: "/api/calendars/events", action: "CalendarController@getEvents", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Files", controller: "FileController",
+    version: "current", prefix: "/api/files",
+    routes: [
+      { method: "GET", path: "/api/files/{id}", action: "FileController@show", mw: ["public"] },
+      { method: "POST", path: "/api/files", action: "FileController@store", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Meetings", controller: "MeetingController",
+    version: "current", prefix: "/api/meetings",
+    routes: [
+      { method: "POST", path: "/api/meetings", action: "MeetingController@store", mw: ["public"] },
+      { method: "PUT", path: "/api/meetings/{id}", action: "MeetingController@update", mw: ["public"] },
+      { method: "DELETE", path: "/api/meetings/{id}", action: "MeetingController@destroy", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Social Links", controller: "SocialLinkController",
+    version: "current", prefix: "/api/social-links",
+    routes: [
+      { method: "GET", path: "/api/social-links/self", action: "SocialLinkController@getSelf", mw: ["public"] },
+      { method: "POST", path: "/api/social-links", action: "SocialLinkController@create", mw: ["public"] },
+      { method: "PUT", path: "/api/social-links/{id}", action: "SocialLinkController@update", mw: ["public"] },
+      { method: "DELETE", path: "/api/social-links/{id}", action: "SocialLinkController@destroy", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Resources", controller: "ResourceController",
+    version: "current", prefix: "/api/resources",
+    routes: [
+      { method: "GET", path: "/api/resources/img/dbs/{id}", action: "ResourceController@show", mw: ["auth"] },
+      { method: "GET", path: "/api/resources/img/qualification/{id}", action: "ResourceController@show", mw: ["auth"] },
+      { method: "GET", path: "/api/resources/files/{id}", action: "ResourceController@show", mw: ["public"] },
+      { method: "GET", path: "/api/resources/assets/mobile/icons/{id}", action: "ResourceController@show", mw: ["public"] },
+      { method: "GET", path: "/api/resources/img/profile/{id}", action: "ResourceController@show", mw: ["public"] },
+      { method: "GET", path: "/api/resources/vid/profile/{id}", action: "ResourceController@show", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Cancellation Policies", controller: "CancellationPolicyController",
+    version: "current", prefix: "/api/cancellation-policies",
+    routes: [
+      { method: "GET", path: "/api/cancellation-policies", action: "CancellationPolicyController@getPolicies", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Subjects", controller: "SubjectController",
+    version: "current", prefix: "/api/subjects",
+    routes: [
+      { method: "GET", path: "/api/subjects", action: "SubjectController@all", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Subject Groups", controller: "SubjectGroupController",
+    version: "current", prefix: "/api/subject-groups",
+    routes: [
+      { method: "GET", path: "/api/subject-groups", action: "SubjectGroupController@index", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Service Notifications", controller: "ServiceNotificationController",
+    version: "current", prefix: "/api/service-notifications",
+    routes: [
+      { method: "GET", path: "/api/service-notifications", action: "ServiceNotificationController@index", mw: ["public"] },
+    ]
+  },
+
+  // ===== LEGACY v1 API =====
+  {
+    title: "v1 Auth", controller: "v1\\Auth\\LoginController, RegisterController, etc.",
+    version: "legacy", prefix: "/api/v1/auth",
+    routes: [
+      { method: "POST", path: "/api/v1/auth/login", action: "v1\\Auth\\LoginController@login", mw: ["public"] },
+      { method: "GET", path: "/api/v1/auth/login", action: "v1\\Auth\\LoginController@show", mw: ["public"] },
+      { method: "POST", path: "/api/v1/auth/logout", action: "v1\\Auth\\LoginController@logout", mw: ["public"] },
+      { method: "POST", path: "/api/v1/auth/register", action: "v1\\Auth\\RegisterController@register", mw: ["public"] },
+      { method: "POST", path: "/api/v1/auth/forgot", action: "v1\\Auth\\ForgotPasswordController@sendResetLinkEmail", mw: ["public"] },
+      { method: "GET", path: "/api/v1/auth/email/verify/resend", action: "v1\\Auth\\VerificationController@resend", mw: ["public"] },
+    ]
+  },
+  {
+    title: "v1 Search", controller: "v1\\SearchController",
+    version: "legacy", prefix: "/api/v1/search",
+    routes: [
+      { method: "POST", path: "/api/v1/search", action: "v1\\SearchController@find", mw: ["public"] },
+      { method: "GET", path: "/api/v1/search", action: "v1\\SearchController@find", mw: ["public"] },
+    ]
+  },
+  {
+    title: "v1 Users", controller: "v1\\UserController",
+    version: "legacy", prefix: "/api/v1/users",
+    routes: [
+      { method: "GET", path: "/api/v1/users/self", action: "v1\\UserController@getCurrentUser", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/users/{id}", action: "v1\\UserController@getUser", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/users", action: "v1\\UserController@update", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/users/profile-image", action: "v1\\UserController@updateProfileImage", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/users/profile-video", action: "v1\\UserController@updateProfileVideo", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/users/profile-video", action: "v1\\UserController@deleteProfileVideo", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/personal-details", action: "v1\\UserController@getPersonalDetail", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/personal-details", action: "v1\\UserController@updatePersonalDetail", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Tutors", controller: "v1\\TutorController",
+    version: "legacy", prefix: "/api/v1/tutors",
+    routes: [
+      { method: "GET", path: "/api/v1/tutors/self/status", action: "v1\\TutorController@getSelfStatus", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Bookings", controller: "v1\\BookingController",
+    version: "legacy", prefix: "/api/v1/bookings",
+    routes: [
+      { method: "GET", path: "/api/v1/bookings", action: "v1\\BookingController@all", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/bookings/{id}", action: "v1\\BookingController@getId", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/bookings", action: "v1\\BookingController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/bookings/{id}/reschedule", action: "v1\\BookingController@reschedule", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/bookings/{id}/approve", action: "v1\\BookingController@approve", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/bookings/{id}/cancel", action: "v1\\BookingController@cancel", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Lessons", controller: "v1\\LessonController",
+    version: "legacy", prefix: "/api/v1/lessons",
+    routes: [
+      { method: "GET", path: "/api/v1/lessons", action: "v1\\LessonController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/lessons", action: "v1\\LessonController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/lessons/{id}", action: "v1\\LessonController@update", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Payments", controller: "v1\\PaymentController",
+    version: "legacy", prefix: "/api/v1/payments",
+    routes: [
+      { method: "GET", path: "/api/v1/payments/accounts", action: "v1\\PaymentController@getPaymentAccount", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/payments/bank-accounts", action: "v1\\PaymentController@storeBankAccount", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/payments/cards", action: "v1\\PaymentController@storeCard", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/payments/bank-accounts/{id}", action: "v1\\PaymentController@deleteBankAccount", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/payments/pay", action: "v1\\PaymentController@pay", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/payments/client-secret", action: "v1\\PaymentController@getClientSecret", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/payments/payment-intent", action: "v1\\PaymentController@associatePaymentIntent", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/payments/webhooks/accounts", action: "v1\\PaymentController@accountStatusUpdate", mw: ["public"] },
+    ]
+  },
+  {
+    title: "v1 Teaches", controller: "v1\\TeachController",
+    version: "legacy", prefix: "/api/v1/teaches",
+    routes: [
+      { method: "GET", path: "/api/v1/teaches", action: "v1\\TeachController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/teaches", action: "v1\\TeachController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/teaches/{id}", action: "v1\\TeachController@update", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/teaches/{id}/disable", action: "v1\\TeachController@disable", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/teaches/{id}/enable", action: "v1\\TeachController@enable", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/teaches/{id}", action: "v1\\TeachController@delete", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Day Availability", controller: "v1\\DayAvailabilityController",
+    version: "legacy", prefix: "/api/v1/day-availabilites",
+    routes: [
+      { method: "GET", path: "/api/v1/day-availabilites", action: "v1\\DayAvailabilityController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/day-availabilites", action: "v1\\DayAvailabilityController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/day-availabilites/{id}", action: "v1\\DayAvailabilityController@update", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/day-availabilites/{id}", action: "v1\\DayAvailabilityController@destroy", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Availability", controller: "v1\\AvailabilityController",
+    version: "legacy", prefix: "/api/v1/availabilites",
+    routes: [
+      { method: "GET", path: "/api/v1/availabilites", action: "v1\\AvailabilityController@searchForTimes", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/availabilites/search", action: "v1\\AvailabilityController@search", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Verification", controller: "v1\\IdentityVerificationController",
+    version: "legacy", prefix: "/api/v1/verification",
+    routes: [
+      { method: "POST", path: "/api/v1/verification/applicant", action: "v1\\IdentityVerificationController@createSession", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/verification/{id}", action: "v1\\IdentityVerificationController@updateAccount", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/verification/check", action: "v1\\IdentityVerificationController@createCheck", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/verification/token", action: "v1\\IdentityVerificationController@createToken", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/verification/status/push-notification", action: "v1\\IdentityVerificationController@sendStatusPushNotification", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/verification/session/self", action: "v1\\IdentityVerificationController@getSelfSession", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/verification/status", action: "v1\\IdentityVerificationController@statusUpdate", mw: ["public"] },
+    ]
+  },
+  {
+    title: "v1 Qualification & DBS", controller: "v1\\QualificationVerificationController, DBSVerificationController",
+    version: "legacy", prefix: "/api/v1/verification-*",
+    routes: [
+      { method: "POST", path: "/api/v1/verification-qualification/me", action: "v1\\QualificationVerificationController@uploadDocument", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/verification-qualification/me", action: "v1\\QualificationVerificationController@getVerificationQualification", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/verification-dbs/me", action: "v1\\DBSVerificationController@uploadDocument", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/verification-dbs/me", action: "v1\\DBSVerificationController@getVerificationDBS", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Profiles & Education", controller: "v1\\ProfileController, EducationController, ProfessionController",
+    version: "legacy", prefix: "/api/v1/profiles",
+    routes: [
+      { method: "GET", path: "/api/v1/profiles", action: "v1\\ProfileController@getProfile", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/profiles", action: "v1\\ProfileController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/profiles/{id}", action: "v1\\ProfileController@update", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/education", action: "v1\\EducationController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/education", action: "v1\\EducationController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/education/{id}", action: "v1\\EducationController@update", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/professions", action: "v1\\ProfessionController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/professions", action: "v1\\ProfessionController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/professions/{id}", action: "v1\\ProfessionController@update", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Reviews", controller: "v1\\ReviewController, TutorReviewController",
+    version: "legacy", prefix: "/api/v1/reviews",
+    routes: [
+      { method: "GET", path: "/api/v1/reviews", action: "v1\\ReviewController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/reviews", action: "v1\\ReviewController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/reviews/{id}", action: "v1\\ReviewController@update", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/tutor-reviews", action: "v1\\TutorReviewController@getReviewSummary", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/tutor-reviews/comments", action: "v1\\TutorReviewController@getReviewComments", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/tutor-reviews", action: "v1\\TutorReviewController@store", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/tutor-reviews", action: "v1\\TutorReviewController@destroy", mw: ["auth", "internal"] },
+    ]
+  },
+  {
+    title: "v1 Locations & Addresses", controller: "v1\\LocationController, AddressController",
+    version: "legacy", prefix: "/api/v1/locations",
+    routes: [
+      { method: "GET", path: "/api/v1/locations/me", action: "v1\\LocationController@getCurrentUserLocation", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/locations", action: "v1\\LocationController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/locations/{id}", action: "v1\\LocationController@update", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/addresses", action: "v1\\AddressController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/addresses", action: "v1\\AddressController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/addresses/{id}", action: "v1\\AddressController@update", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/addresses/{id}", action: "v1\\AddressController@destroy", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Meetings & Calendar", controller: "v1\\MeetingController, CalendarEventController",
+    version: "legacy", prefix: "/api/v1/meetings",
+    routes: [
+      { method: "GET", path: "/api/v1/meetings/self", action: "v1\\MeetingController@getMyMeetings", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/meetings/{id}", action: "v1\\MeetingController@getId", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/meetings", action: "v1\\MeetingController@create", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/meetings/{id}", action: "v1\\MeetingController@update", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/meetings/{id}", action: "v1\\MeetingController@destroy", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/calendar-events", action: "v1\\CalendarEventController@store", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Mobile Numbers", controller: "v1\\MobileController",
+    version: "legacy", prefix: "/api/v1/mobile-numbers",
+    routes: [
+      { method: "GET", path: "/api/v1/mobile-numbers/code", action: "v1\\MobileController@requestCode", mw: ["public"] },
+      { method: "GET", path: "/api/v1/mobile-numbers/verify", action: "v1\\MobileController@verify", mw: ["public"] },
+      { method: "GET", path: "/api/v1/mobile-numbers", action: "v1\\MobileController@currentUserNumber", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/mobile-numbers", action: "v1\\MobileController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/mobile-numbers/{id}", action: "v1\\MobileController@update", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Notes", controller: "v1\\NoteController",
+    version: "legacy", prefix: "/api/v1/notes",
+    routes: [
+      { method: "POST", path: "/api/v1/notes", action: "v1\\NoteController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/notes/{id}", action: "v1\\NoteController@update", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 OAuth", controller: "v1\\OAuthServiceController",
+    version: "legacy", prefix: "/api/v1/oauth",
+    routes: [
+      { method: "POST", path: "/api/v1/oauth/unsubscribe", action: "v1\\OAuthServiceController@unsubscribe", mw: ["public"] },
+      { method: "GET", path: "/api/v1/oauth", action: "v1\\OAuthServiceController@getOAuthURLForService", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/oauth/token", action: "v1\\OAuthServiceController@getOAuthAccessToken", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/oauth/token/refresh", action: "v1\\OAuthServiceController@refreshAccessToken", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/oauth/token", action: "v1\\OAuthServiceController@deleteAccessToken", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Reference Data", controller: "v1\\CountryController, RoleController, etc.",
+    version: "legacy", prefix: "/api/v1/*",
+    routes: [
+      { method: "GET", path: "/api/v1/countries", action: "v1\\CountryController@all", mw: ["public"] },
+      { method: "POST", path: "/api/v1/countries", action: "v1\\CountryController@store", mw: ["public"] },
+      { method: "PUT", path: "/api/v1/countries/{id}", action: "v1\\CountryController@update", mw: ["public"] },
+      { method: "GET", path: "/api/v1/currencies", action: "v1\\CurrencyController@all", mw: ["public"] },
+      { method: "GET", path: "/api/v1/roles", action: "v1\\RoleController@all", mw: ["public"] },
+      { method: "GET", path: "/api/v1/languages", action: "v1\\LanguageController@all", mw: ["public"] },
+      { method: "GET", path: "/api/v1/name-titles", action: "v1\\NameTitleController@all", mw: ["public"] },
+      { method: "GET", path: "/api/v1/subjects", action: "v1\\SubjectController@all", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/subject-levels", action: "v1\\SubjectLevelController@all", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/exam-boards", action: "v1\\ExamBoardController@all", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/lesson-locations", action: "v1\\LessonLocationController@all", mw: ["auth"] },
+    ]
+  },
+  {
+    title: "v1 Other", controller: "v1\\Various",
+    version: "legacy", prefix: "/api/v1/*",
+    routes: [
+      { method: "POST", path: "/api/v1/guest-users", action: "v1\\UserController@createGuestUser", mw: ["public"] },
+      { method: "POST", path: "/api/v1/remote-push-notification", action: "v1\\RemotePushNotificationController@store", mw: ["public"] },
+      { method: "PUT", path: "/api/v1/user-devices/{id}", action: "v1\\UserDeviceController@update", mw: ["auth"] },
+      { method: "GET", path: "/api/v1/children", action: "v1\\ChildController@all", mw: ["auth"] },
+      { method: "POST", path: "/api/v1/children", action: "v1\\ChildController@store", mw: ["auth"] },
+      { method: "PUT", path: "/api/v1/children/{id}", action: "v1\\ChildController@update", mw: ["auth"] },
+      { method: "DELETE", path: "/api/v1/children/{id}", action: "v1\\ChildController@delete", mw: ["auth"] },
+    ]
+  },
+
+  // ===== WEB ROUTES =====
+  {
+    title: "Web Auth", controller: "Auth\\LoginController, RegisterController, ResetPasswordController",
+    version: "web", prefix: "/",
+    routes: [
+      { method: "GET", path: "/", action: "Closure (welcome view)", mw: ["public"] },
+      { method: "POST", path: "/login", action: "Auth\\LoginController@login", mw: ["public"] },
+      { method: "GET", path: "/login", action: "Auth\\LoginController@show", mw: ["public"] },
+      { method: "POST", path: "/logout", action: "Auth\\LoginController@logout", mw: ["public"] },
+      { method: "GET", path: "/register", action: "Auth\\RegisterController@show", mw: ["public"] },
+      { method: "POST", path: "/register", action: "Auth\\RegisterController@register", mw: ["public"] },
+      { method: "GET", path: "/password/reset/{token}", action: "Auth\\ResetPasswordController@showResetForm", mw: ["public"] },
+      { method: "POST", path: "/password/reset", action: "Auth\\ResetPasswordController@reset", mw: ["public"] },
+      { method: "GET", path: "/email/verify/{id}", action: "Auth\\VerificationController@verify", mw: ["public"] },
+      { method: "GET", path: "/email/verified", action: "Auth\\VerificationController@verified", mw: ["public"] },
+    ]
+  },
+  {
+    title: "Web Integrations", controller: "Integrations\\ZoomIntegrationController, GoogleIntegrationController",
+    version: "web", prefix: "/integrations",
+    routes: [
+      { method: "GET", path: "/integrations/zoom", action: "Integrations\\ZoomIntegrationController@show", mw: ["auth"] },
+      { method: "GET", path: "/integrations/zoom/redirect", action: "Integrations\\ZoomIntegrationController@redirect", mw: ["public"] },
+      { method: "GET", path: "/integrations/google", action: "Integrations\\GoogleIntegrationController@show", mw: ["auth"] },
+      { method: "GET", path: "/integrations/google/redirect", action: "Integrations\\GoogleIntegrationController@redirect", mw: ["public"] },
+    ]
+  },
+];
+
+let activeFilter = 'all';
+
+function getMwClass(mw) {
+  if (mw === 'auth') return 'auth';
+  if (mw === 'public') return 'public';
+  if (mw === 'internal') return 'internal';
+  if (mw === 'web-api') return 'web-api';
+  if (mw === 'signed') return 'signed';
+  return '';
+}
+
+function render() {
+  const grid = document.getElementById('grid');
+  const search = document.getElementById('search').value.toLowerCase();
+  grid.innerHTML = '';
+
+  let totalRoutes = 0, gets = 0, posts = 0, puts = 0, deletes = 0;
+  const controllers = new Set();
+
+  routeGroups.forEach(group => {
+    if (activeFilter !== 'all') {
+      if (activeFilter === 'current' && group.version !== 'current') return;
+      if (activeFilter === 'legacy' && group.version !== 'legacy') return;
+      if (activeFilter === 'web' && group.version !== 'web') return;
+      if (activeFilter === 'public') {
+        const hasPublic = group.routes.some(r => r.mw.includes('public'));
+        if (!hasPublic) return;
+      }
+      if (activeFilter === 'auth') {
+        const hasAuth = group.routes.some(r => r.mw.includes('auth'));
+        if (!hasAuth) return;
+      }
+    }
+
+    let filteredRoutes = group.routes;
+    if (activeFilter === 'public') filteredRoutes = filteredRoutes.filter(r => r.mw.includes('public'));
+    if (activeFilter === 'auth') filteredRoutes = filteredRoutes.filter(r => r.mw.includes('auth'));
+
+    if (search) {
+      filteredRoutes = filteredRoutes.filter(r =>
+        r.path.toLowerCase().includes(search) ||
+        r.action.toLowerCase().includes(search) ||
+        r.method.toLowerCase().includes(search) ||
+        group.title.toLowerCase().includes(search) ||
+        group.controller.toLowerCase().includes(search)
+      );
+    }
+
+    if (filteredRoutes.length === 0) return;
+
+    controllers.add(group.controller);
+
+    const versionClass = group.version === 'current' ? 'version-current' : group.version === 'legacy' ? 'version-legacy' : 'version-web';
+    const versionLabel = group.version === 'current' ? 'Current' : group.version === 'legacy' ? 'Legacy v1' : 'Web';
+
+    let html = `<div class="group">
+      <div class="group-header">
+        <div>
+          <div class="group-title">${group.title}</div>
+          <div class="group-controller">${group.controller}</div>
+        </div>
+        <span class="version-badge ${versionClass}">${versionLabel}</span>
+      </div>
+      <div class="group-body">`;
+
+    filteredRoutes.forEach(route => {
+      totalRoutes++;
+      if (route.method === 'GET') gets++;
+      if (route.method === 'POST') posts++;
+      if (route.method === 'PUT') puts++;
+      if (route.method === 'DELETE') deletes++;
+
+      const mwTags = route.mw.map(m => `<span class="mw-tag ${getMwClass(m)}">${m}</span>`).join('');
+
+      html += `<div class="route">
+        <span class="method method-${route.method}">${route.method}</span>
+        <span class="path">${route.path}</span>
+        <div class="middleware-tags">${mwTags}</div>
+      </div>`;
+    });
+
+    html += '</div></div>';
+    grid.innerHTML += html;
+  });
+
+  document.getElementById('total-routes').textContent = totalRoutes;
+  document.getElementById('total-controllers').textContent = controllers.size;
+  document.getElementById('total-get').textContent = gets;
+  document.getElementById('total-post').textContent = posts;
+  document.getElementById('total-put').textContent = puts;
+  document.getElementById('total-delete').textContent = deletes;
+}
+
+function setFilter(filter) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  render();
+}
+
+function filterRoutes() { render(); }
+
+render();
+</script>
+</body>
+</html>
