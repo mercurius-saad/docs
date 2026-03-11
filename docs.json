@@ -147,19 +147,6 @@
             ]
           }
         ]
-      },
-      {
-        "tab": "AI Tools",
-        "groups": [
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
-          }
-        ]
       }
     ]
   },
