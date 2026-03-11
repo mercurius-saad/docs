@@ -53,10 +53,8 @@
   .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
   .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
   .header-text { flex: 1; }
-  .theme-toggle { display: flex; gap: 4px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
-  .theme-btn { padding: 6px 10px; border-radius: 6px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.2s; }
-  .theme-btn.active { background: var(--btn-active); color: #fff; }
-  .theme-btn:hover:not(.active) { color: var(--text-primary); }
+  .theme-btn { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); cursor: pointer; font-size: 18px; line-height: 1; transition: all 0.2s; }
+  .theme-btn:hover { color: var(--text-primary); border-color: var(--accent); }
   .legend { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -110,11 +108,7 @@
     <h1>Tutorbloc API Route Map</h1>
     <p class="subtitle">Interactive diagram of all API routes, controllers, and middleware</p>
   </div>
-  <div class="theme-toggle">
-    <button class="theme-btn" onclick="setTheme('light')" title="Light">&#9788;</button>
-    <button class="theme-btn" onclick="setTheme('system')" title="System">&#9680;</button>
-    <button class="theme-btn" onclick="setTheme('dark')" title="Dark">&#9790;</button>
-  </div>
+  <button class="theme-btn" onclick="toggleTheme()" id="theme-toggle"></button>
 </div>
 
 <div class="stats" id="stats">
@@ -765,36 +759,24 @@ function setFilter(filter) {
 
 function filterRoutes() { render(); }
 
-function setTheme(mode) {
-  localStorage.setItem('theme', mode);
-  applyTheme(mode);
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateToggleIcon(next);
 }
 
-function applyTheme(mode) {
-  let isDark;
-  if (mode === 'system') {
-    isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  } else {
-    isDark = mode === 'dark';
-  }
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-  document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
-  const labels = { light: '\u2604', system: '\u2680', dark: '\u263E' };
-  const titles = { light: 'Light', system: 'System', dark: 'Dark' };
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    if (btn.title.toLowerCase() === mode) btn.classList.add('active');
-  });
+function updateToggleIcon(theme) {
+  const btn = document.getElementById('theme-toggle');
+  btn.innerHTML = theme === 'dark' ? '&#9788;' : '&#9790;';
 }
 
-// Init theme from stored preference or default to system
-const savedTheme = localStorage.getItem('theme') || 'system';
-applyTheme(savedTheme);
-
-// Listen for system theme changes
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  const current = localStorage.getItem('theme') || 'system';
-  if (current === 'system') applyTheme('system');
-});
+// Init: use stored preference, else follow system
+const saved = localStorage.getItem('theme');
+const initial = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+document.documentElement.setAttribute('data-theme', initial);
+updateToggleIcon(initial);
 
 render();
 </script>
