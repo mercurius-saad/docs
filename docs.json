@@ -136,7 +136,8 @@
             "pages": [
               "devops/docker",
               "devops/ci-cd",
-              "devops/aws-infrastructure"
+              "devops/aws-infrastructure",
+              "frontend/deployment"
             ]
           },
           {

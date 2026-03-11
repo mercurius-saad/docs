@@ -55,51 +55,17 @@ StripeService::validateCard($data)
 
 Cards stored in the `cards` table with `card_id`, `brand`, `last_4`, `exp_month`, `exp_year`, `is_default`. Soft-deleted when removed.
 
-### Charging
+### Charging & payment flow
 
-```php
-StripeService::createCharge($paymentAccount, $card, $tutorAccount, $currency, $total, $destinationAmount, $fee, $coupon)
-```
+The full charge → capture → receipt → payout flow is documented in [Booking & Payments](/workflows/booking-and-payments). Key `StripeService` methods:
 
-Creates a PaymentIntent with **manual capture** (`capture_method: manual`):
-- Pre-authorizes the amount on the student's card
-- Doesn't charge until explicitly captured
-- Supports 3D Secure (returns `redirectURL` if `requires_action`)
-- Returns `StripePaymentStatus` value object
-
-### Capture
-
-```php
-StripeService::capture($paymentIntentId)
-```
-
-Captures a pre-authorized payment. Called when the booking is confirmed.
-
-### Receipts
-
-```php
-StripeService::createReceipt($paymentIntentId, $booking, $paymentAccount)
-```
-
-Creates a `PaymentReceipt` record with:
-- `charge_id` from Stripe
-- Commission breakdown (calculated via `CommissionService`)
-- Coupon association if applicable
-
-### Payouts (Connect transfers)
-
-```php
-StripeService::createPayout($paymentAccount, $paymentReceipt)
-```
-
-Transfers funds to the tutor's Connect account. Uses either `transfer_group` or `source_transaction` depending on the payment setup. The `transfer_id` is saved on the receipt.
-
-### Refunds
-
-```php
-StripeService::refund($paymentReceipt)           // Full refund
-StripeService::refund($paymentReceipt, $amount)   // Partial refund
-```
+| Method | Purpose |
+|--------|---------|
+| `createCharge()` | Creates PaymentIntent with manual capture, handles 3D Secure |
+| `capture()` | Captures a pre-authorized payment |
+| `createReceipt()` | Creates `PaymentReceipt` with commission breakdown |
+| `createPayout()` | Transfers funds to tutor's Connect account |
+| `refund()` | Full or partial refund |
 
 ## Subscriptions
 
@@ -156,6 +122,8 @@ Both webhook endpoints are **public** (no auth middleware). Security relies enti
 </Warning>
 
 ## Payment status flow
+
+See [Booking & Payments — Step 3](/workflows/booking-and-payments#step-3-make-payment) for the full payment flow with booking state transitions.
 
 ```
 PaymentIntent created (manual capture)

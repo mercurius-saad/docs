@@ -55,6 +55,8 @@ There's no centralized API service layer. Each component defines its own API cal
 
 ## Authentication
 
+For the backend implementation of the auth system (custom Redis token guard), see [Authentication architecture](/architecture/authentication).
+
 ### How it works
 
 1. User logs in via `POST /auth/login` (or registers via `POST /auth/register`)
@@ -95,9 +97,9 @@ There's no global auth store or interceptor. If a request returns 401, handling 
 
 ## Complete API endpoint map
 
-Every API endpoint the client calls, mapped to the backend:
+Every API endpoint the client calls, mapped to the backend. For full backend endpoint documentation, see the [API Reference](/api-reference/introduction).
 
-### Authentication
+### Authentication ([backend docs](/api-reference/auth))
 
 | Client action | Method | Endpoint |
 |--------------|--------|----------|
@@ -107,7 +109,7 @@ Every API endpoint the client calls, mapped to the backend:
 | Dashboard login | POST | `/v1/auth/login` |
 | Resend verification | GET | `/v1/auth/email/verify/resend` |
 
-### Users & profiles
+### Users & profiles ([backend docs](/api-reference/users))
 
 | Client action | Method | Endpoint |
 |--------------|--------|----------|
@@ -118,7 +120,7 @@ Every API endpoint the client calls, mapped to the backend:
 | Search tutor by email | GET | `/tutors?email={email}` |
 | Get self (dashboard) | GET | `/v1/users/self` |
 
-### Booking & lessons
+### Booking & lessons ([backend docs](/api-reference/bookings))
 
 | Client action | Method | Endpoint |
 |--------------|--------|----------|
@@ -132,7 +134,7 @@ Every API endpoint the client calls, mapped to the backend:
 | Update booking | PUT | `/bookings/{id}?secret={secret}` |
 | Cancel booking | PUT | `/bookings/{id}/cancel?secret={secret}` |
 
-### Payments
+### Payments ([backend docs](/api-reference/payments))
 
 | Client action | Method | Endpoint |
 |--------------|--------|----------|
