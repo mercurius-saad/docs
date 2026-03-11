@@ -3,9 +3,9 @@
   "theme": "sequoia",
   "name": "Help",
   "colors": {
-    "primary": "#2E3B51",
+    "primary": "#3963A4",
     "light": "#C9DAF8",
-    "dark": "#3963A4"
+    "dark": "#2E3B51"
   },
   "favicon": "/favicon.svg",
   "navigation": {
