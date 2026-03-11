@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "maple",
+  "theme": "sequoia",
   "name": "Tutorbloc",
   "colors": {
     "primary": "#2E3B51",
@@ -186,5 +186,8 @@
       "x": "https://x.com/tutorbloc"
     }
   },
-  "description": "We give independent tutors modern tools to run their business so they can focus on one-to-one sessions."
+  "description": "We give independent tutors modern tools to run their business so they can focus on one-to-one sessions.",
+  "appearance": {
+    "default": "system"
+  }
 }
