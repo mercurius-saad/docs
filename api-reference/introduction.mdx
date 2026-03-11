@@ -1,33 +1,82 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API Overview"
+description: "How the API is structured, versioned, and authenticated"
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Base URLs
 
-## Welcome
+| Environment | URL |
+|-------------|-----|
+| Local (Docker) | `http://localhost/api` |
+| Staging | Configured via `APP_URL` env var |
+| Production | Configured via `APP_URL` env var |
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+## API versions
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+Two API versions coexist:
+
+| Version | Prefix | Route file | Controller namespace |
+|---------|--------|-----------|---------------------|
+| Current | `/api/*` | `routes/api.php` | `tutorbloc\Http\Controllers` |
+| Legacy v1 | `/api/v1/*` | `routes/legacy-api.php` | `tutorbloc\Http\Controllers\v1` |
+
+The current API also supports header-based versioning via the `API-Version` request header. Controllers dynamically resolve service and transformer classes based on this header.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Three authentication modes are used across endpoints:
+
+| Middleware | Header/param | Description |
+|-----------|-------------|-------------|
+| `auth:api` | `Authorization: Bearer {token}` | Standard token auth via Redis guard |
+| `web.api` | Token, signed URL, or `secret` param | Hybrid auth (see [Authentication](/architecture/authentication)) |
+| `internal` | Requires `auth:api` + role_id=200 | Admin-only operations |
+| _(none)_ | — | Public endpoint |
+
+## Rate limiting
+
+API endpoints are throttled at **300 requests per minute** per client (configured in `app/Http/Kernel.php`).
+
+## CORS
+
+CORS is handled by the `TrustedOrigins` middleware (not Laravel's built-in CORS package):
+
+- **Exact match:** `TRUSTED_ORIGINS` env var — comma-separated origins
+- **Substring match:** `WHITELISTED_ORIGINS` env var — comma-separated partial origins
+
+Returns 403 if the `Origin` header doesn't match either list.
+
+## Response format
+
+All API responses are JSON. Errors follow this structure:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+{
+  "message": "Error description",
+  "details": { ... },
+  "exception": "ClassName",
+  "trace": [...]
+}
 ```
+
+<Note>
+`exception` and `trace` fields are only included when `APP_DEBUG=true`.
+</Note>
+
+## HTTP caching
+
+The `ETag` middleware (`app/Http/Middleware/API/v1/ETag.php`) adds ETag-based caching for GET requests. Returns `304 Not Modified` when the client's `If-None-Match` header matches.
+
+## Security headers
+
+All responses include (via `SecureHeaders` middleware):
+
+```
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer-when-downgrade
+```
+
+Headers removed: `X-Powered-By`, `Server`.

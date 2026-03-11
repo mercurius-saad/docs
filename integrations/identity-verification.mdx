@@ -1,0 +1,136 @@
+---
+title: "Identity Verification"
+description: "Onfido and Yoti integration for tutor identity checks"
+---
+
+## Overview
+
+Tutors must pass identity verification before their profile becomes visible. The platform uses two providers:
+
+| Provider | Package | Purpose |
+|----------|---------|---------|
+| **Onfido** | `onfido/api-php-client` v4.1.3 | Primary identity document verification |
+| **Yoti** | `yoti/yoti-php-sdk` v3.1 | Alternative identity verification |
+
+## Verification types
+
+Tutors go through up to three verification processes:
+
+### 1. Identity verification (required)
+
+**Model:** `app/Models/v1/VerificationAccount.php`
+
+```
+verification_accounts (soft deletes)
+├── status: UPLOAD_DOCUMENT → PENDING → PASS / FAIL / INTERNAL_REVIEW
+├── applicant_id (external Onfido/Yoti ID)
+├── user_id → users
+├── file_id → files (uploaded document)
+└── verification_gateway_id → verification_gateways
+```
+
+**States:**
+
+| Constant | Meaning |
+|----------|---------|
+| `UPLOAD_DOCUMENT` | Waiting for document upload |
+| `PENDING` | Submitted, awaiting provider response |
+| `PASS` | Identity verified |
+| `FAIL` | Verification failed |
+| `INTERNAL_REVIEW` | Flagged for manual review by internal team |
+
+When status changes, `TutorIDVerificationStatusUpdated` email is sent to internal team with status-specific messaging.
+
+### 2. DBS check (required)
+
+**Model:** `app/Models/v1/VerificationDBS.php`
+
+DBS (Disclosure and Barring Service) is a UK criminal background check.
+
+```
+verification_dbs
+├── status: UPLOAD_DOCUMENT → PENDING → PASS / FAIL
+├── certificate_number
+├── countersignatory
+├── registered_by
+├── date_of_issue
+├── document_image_url
+└── user_id → users
+```
+
+DBS documents are uploaded as images and stored in S3. Access to DBS document URLs requires `auth:api` middleware.
+
+### 3. Qualification verification (required)
+
+**Model:** `app/Models/v1/VerificationQualification.php`
+
+```
+verification_qualifications
+├── status: UPLOAD_DOCUMENT → PENDING → PASS / FAIL
+├── document_image_url
+└── user_id → users
+```
+
+## Configuration
+
+### Onfido
+
+```
+ONFIDO_API_TOKEN       — Onfido API authentication token
+ONFIDO_WEBHOOK_TOKEN   — Webhook verification token
+```
+
+### Yoti
+
+```
+YOTI_BASE_URL          — Yoti API base URL
+YOTI_SDK_ID            — Yoti SDK identifier
+YOTI_PEM_NAME          — Yoti PEM certificate filename
+YOTI_HEADER_TOKEN      — Yoti API header token
+```
+
+## Webhook
+
+**Endpoint:** `POST /api/v1/verification/status` (public, no auth)
+
+Receives status updates from Onfido when verification completes. Updates the `verification_accounts` record.
+
+## Verification gateways
+
+**Model:** `app/Models/v1/VerificationGateway.php`
+
+```
+verification_gateways
+├── name (e.g., "onfido", "yoti")
+└── is_enabled (boolean)
+```
+
+Seeded by `InitialVerificationGatewayTableSeeder`.
+
+## How verification affects visibility
+
+The `User` model checks verification status at multiple points:
+
+```php
+$user->hasPassedVerification()     // VerificationAccount status = PASS
+$user->hasValidDBS()               // VerificationDBS status = PASS
+$user->hasValidQualification()     // VerificationQualification status = PASS
+$user->hasValidEducation()         // Education record with all fields filled
+```
+
+A tutor needs **all** of these to be true for `isVerified()` to return `true` — which is required for search visibility.
+
+<Note>
+The `CheckVerificationStatusOfPendingApplicants` job exists in `app/Jobs/` but is **completely disabled** (all code commented out). Status updates come via webhooks instead.
+</Note>
+
+## Resource access
+
+Verification documents are served via S3 signed URLs with different expiry times:
+
+| Resource | Expiry | Auth required |
+|----------|--------|--------------|
+| Profile images | 5 minutes | No |
+| Profile videos | 5 days | No |
+| DBS documents | 5 minutes | Yes (`auth:api`) |
+| Qualification documents | 5 minutes | Yes (`auth:api`) |

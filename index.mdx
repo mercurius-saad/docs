@@ -1,97 +1,59 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "TutorBloc API"
+description: "Internal developer documentation for the TutorBloc backend API"
 ---
 
-## Setting up
+TutorBloc is an online tutoring marketplace connecting students and parents with verified tutors in the UK. This API is the backbone of the platform.
 
-Get your documentation site up and running in minutes.
+## What the API does
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Tutor onboarding" icon="user-check">
+    Registration, identity verification (Onfido/Yoti), DBS criminal checks, qualification uploads, multi-step profile completion
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Search & discovery" icon="magnifying-glass">
+    Location-aware tutor search with subject, level, availability, distance, and lesson type filtering
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Booking & payments" icon="credit-card">
+    Lesson booking with Stripe payment processing, pre-authorization, 3D Secure, and automated payouts to tutors
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Lesson management" icon="calendar">
+    Scheduling, rescheduling (72hr advance notice), cancellation, refunds, and post-lesson review flows
   </Card>
-</Columns>
+  <Card title="Video lessons" icon="video">
+    Zoom and Daily.co integration for online tutoring sessions
+  </Card>
+  <Card title="Notifications" icon="bell">
+    Email (SMTP/Mailgun), push (APNS/FCM), and SMS (Twilio) notifications across all workflows
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## User roles
 
-Everything you need to create world-class documentation.
+The platform has four user roles, defined in `app/Models/v1/Role.php`:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+| Role | ID | Description |
+|------|----|-------------|
+| **Tutor** | `1` | Creates profile, sets availability, teaches lessons, receives payouts |
+| **Student** | `2` | Searches tutors, books lessons, makes payments |
+| **Parent** | `3` | Books lessons on behalf of children, manages child profiles |
+| **Internal** | `200` | Admin access for internal team operations |
 
-## Need inspiration?
+There are also test roles: `TUTOR_TEST (100)` and `STUDENT_TEST (101)`.
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Quick links
+
+<CardGroup cols={2}>
+  <Card title="Local setup" icon="laptop" href="/getting-started/local-setup">
+    Get the API running on your machine
+  </Card>
+  <Card title="Where to start reading" icon="book" href="/getting-started/where-to-start">
+    The 5 files every new dev should read first
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    How the codebase is structured
+  </Card>
+  <Card title="Known gotchas" icon="triangle-exclamation" href="/devops/gotchas">
+    Non-obvious things that will trip you up
+  </Card>
+</CardGroup>

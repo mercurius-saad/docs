@@ -1,0 +1,116 @@
+---
+title: "Availability Endpoints"
+description: "Checking tutor availability for booking"
+---
+
+## Check available times
+
+```
+GET /api/availabilites
+```
+
+**Auth:** None (public)
+
+**Handler:** `AvailabilityService::getAvailableTimes()`
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `teach_id` | int | The teach record to check availability for |
+| `date` | date | Date to check |
+| `duration` | int | Desired lesson duration (minutes) |
+| `lesson_type` | int | 1=tutor's home, 2=student's home, 3=online |
+| `post_code` | string | Student's postcode (for travel time calculation) |
+| `utc_offset` | int | Client timezone offset |
+
+### Response
+
+Via `AvailableTimesTransformer`:
+
+```json
+{
+  "lesson_price_breakdown": {
+    "sign": "£",
+    "currency_code": "GBP",
+    "display_format": "0.00",
+    "lesson_price": "30.00",
+    "service_fee": "3.00",
+    "total": "33.00",
+    "discount_amount": "0.00",
+    "initial_total": "33.00"
+  },
+  "availabilities": [
+    {
+      "date": "2024-03-15",
+      "duration_preference": {
+        "min": 15,
+        "max": 120,
+        "default": 60
+      },
+      "available_lesson_types": ["online", "tutors_home"],
+      "times": [
+        { "start": "09:00", "end": "09:15" },
+        { "start": "09:15", "end": "09:30" },
+        ...
+      ]
+    }
+  ]
+}
+```
+
+### How availability is calculated
+
+1. Gets tutor's `DayAvailability` for the requested day of week
+2. Generates 15-minute interval time slots
+3. **Filters out clashing lessons** — checks existing lessons on that date
+4. **Filters out calendar events** — checks Google Calendar if connected
+5. **Applies travel time buffers** — for in-person lessons, uses BlackBox service to calculate transit time between locations
+6. **Validates postcode** — for student's home lessons, validates the student's postcode is within tutor's travel distance
+7. Converts times based on UTC offset
+
+---
+
+## Legacy availability search
+
+```
+GET /api/v1/availabilities/search
+```
+
+**Auth:** `auth:api`
+
+Similar functionality with slightly different parameters.
+
+---
+
+## Day availability management (tutor-side)
+
+Tutors manage their weekly schedule:
+
+```
+GET    /api/v1/day-availabilities
+POST   /api/v1/day-availabilities
+PUT    /api/v1/day-availabilities/{id}
+DELETE /api/v1/day-availabilities/{id}
+```
+
+**Auth:** `auth:api`
+
+Each day availability record defines:
+- **Day** — day of week (mapped to generic dates internally)
+- **Time slots** — from/to times within that day
+- **Lesson types** — which lesson types are available (online, tutor's home, student's home)
+- **Buffer duration** — travel time buffer between lessons
+
+### Day constants
+
+Defined in `DayAvailability` model:
+
+| Day | Generic date mapping |
+|-----|---------------------|
+| SUNDAY | Maps to a fixed reference date |
+| MONDAY | Maps to a fixed reference date |
+| ... | ... |
+| SATURDAY | Maps to a fixed reference date |
+
+The system uses generic dates (not real calendar dates) so availability repeats weekly.

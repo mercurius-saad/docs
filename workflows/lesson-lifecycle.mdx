@@ -1,0 +1,176 @@
+---
+title: "Lesson Lifecycle"
+description: "Lesson states, rescheduling, cancellation, and post-lesson flows"
+---
+
+## State machine
+
+### Lesson states
+
+```
+                    ┌─── RESCHEDULE (2) ───┐
+                    │         │             │
+                    │    [72hr+ notice]     │
+                    │         │             │
+    Created ──► ACTIVE (1) ◄─┘     CANCELLED (0)
+                    │                       ▲
+                    └───────────────────────┘
+```
+
+| State | Value | Description |
+|-------|-------|-------------|
+| `ACTIVE` | 1 | Lesson is confirmed and scheduled |
+| `RESCHEDULE` | 2 | Reschedule has been proposed, awaiting response |
+| `CANCELLED` | 0 | Lesson is cancelled |
+
+### Booking states
+
+```
+AWAITING_PAYMENT (3) → REQUIRES_CAPTURE (5) → PAYED (1) → REFUNDED (0)
+                                                        → PARTIAL_REFUNDED (4)
+```
+
+## Creating a lesson
+
+When a booking is created, a `Lesson` record is created with:
+- `tutor_id` — the tutor
+- `subject_id`, `level_id`, `exam_board_id` — what's being taught
+- `start`, `finish` — lesson times
+- `teach_id` — which teach record this relates to
+- `state = ACTIVE (1)`
+
+The `boot()` method auto-calculates `duration` in minutes from start/finish.
+
+Students are linked via the `lesson_user` pivot table. Children via `lesson_child`.
+
+## Rescheduling
+
+**Endpoint:** `PUT /api/lessons/{id}/edit` (uses `web.api` middleware)
+
+**Method:** `Lesson::reschedule($data)`
+
+### Rules
+
+<Warning>
+Rescheduling requires **72+ hours advance notice** before the original lesson start time. If less than 72 hours, the reschedule is rejected.
+</Warning>
+
+### Flow
+
+<Steps>
+
+<Step title="Propose new time">
+The requester submits `suggested_start` and `suggested_finish`. The lesson state changes to `RESCHEDULE (2)`.
+</Step>
+
+<Step title="Notify other party">
+`LessonReschedule` email is sent with two action buttons:
+- **Accept** — signed URL that approves the reschedule
+- **Decline** — signed URL that cancels
+
+The email warns there's a 24-hour response window.
+</Step>
+
+<Step title="Accept or decline">
+**Accept:** `Lesson::approveRescheduledLesson()` — updates `start`/`finish` to the suggested times, clears suggested fields, sets state back to `ACTIVE (1)`.
+
+**Decline:** Lesson moves to `CANCELLED (0)`.
+</Step>
+
+<Step title="Auto-cancel (background)">
+The `CheckLessonStatus` job runs every 15 minutes. If a rescheduled lesson hasn't been responded to and the suggested time has passed, it auto-cancels.
+</Step>
+
+</Steps>
+
+## Cancellation
+
+**Endpoint:** `PUT /api/bookings/{id}/cancel` (uses `web.api` middleware)
+
+### Who can cancel
+
+Defined in `BookingPolicy::cancel()`:
+- Internal users (admin)
+- The user who made the booking
+- The student associated with the lesson
+- The parent of a child in the lesson
+
+### What happens
+
+1. Lesson state → `CANCELLED (0)`
+2. `StripeService::refund()` processes the refund
+3. Booking state → `REFUNDED (0)` or `PARTIAL_REFUNDED (4)`
+4. `LessonCancelled` email sent to the other party (BCC internal team)
+5. Includes cancellation note if provided
+
+## Post-lesson flows
+
+### Lesson reminders
+
+The `SendLessonReminderPushNotification` job runs every 15 minutes and sends push notifications:
+- **24 hours** before lesson start
+- **2 hours** before lesson start
+
+### Summary notes
+
+After a lesson completes:
+
+1. `SendSummaryNoteNotification` job (daily at 10:00) reminds tutors to add notes for yesterday's lessons
+2. Tutor adds notes via `NoteService::store()` at `POST /api/v1/notes`
+3. Notes support file attachments (polymorphic via `fileables` table)
+4. Student receives `LessonSummaryNote` email with the note content
+5. Student also gets a push notification
+
+### Review request
+
+The `SendReviewTutorNotification` job runs daily at 10:00 UTC:
+
+1. Finds lessons completed yesterday
+2. Determines the reviewer (student or parent)
+3. Avoids duplicate requests (one email per tutor-reviewer pair per day)
+4. Sends `ReviewTutor` email with a review submission link
+
+### Review submission
+
+Reviews use a multi-criteria rating system:
+
+**File:** `app/Models/TutorReview.php` + `app/Models/TutorRatingCriteria.php`
+
+- Each review has ratings across multiple criteria
+- A comment is optional (max 300 chars)
+- `TutorReviewService::getReviewSummary()` returns aggregated ratings (cached until end of day)
+
+### Experience rating
+
+Students can also rate their overall experience (1-5) directly on the lesson:
+
+```php
+$lesson->experience_rating = 4;
+```
+
+## Meeting management
+
+For online lessons, a meeting is created or updated:
+
+**File:** `app/Models/v1/Meeting.php`
+
+`Meeting::createOrUpdateMeeting()` — upsert logic that stores:
+- `meeting_id` — external meeting ID (Zoom or Daily.co)
+- `password` — meeting password
+- `join_url` — host join URL
+- `participant_join_url` — student join URL
+- `lesson_id` — linked lesson
+
+Meeting details are included in booking confirmation emails (`LessonBooked` mail class) with direct join links.
+
+## Calendar integration
+
+When a lesson is booked, a `CalendarEvent` record is created:
+
+```
+calendar_events
+├── event_id (Google Calendar event ID)
+└── lesson_id → lessons
+```
+
+The `CalendarService` syncs events with the tutor's Google Calendar if they have it connected. Calendar events are checked during availability calculations to prevent double-booking.

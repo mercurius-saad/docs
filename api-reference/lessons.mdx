@@ -1,0 +1,113 @@
+---
+title: "Lesson Endpoints"
+description: "Lesson management, rescheduling, and notes"
+---
+
+## Current API
+
+### Get lesson
+
+```
+GET /api/lessons/{id}
+```
+
+**Auth:** `web.api`
+
+---
+
+### Edit lesson (reschedule)
+
+```
+PUT /api/lessons/{id}/edit
+```
+
+**Auth:** `web.api`
+
+Proposes a reschedule with new `suggested_start` and `suggested_finish` times.
+
+<Warning>
+Requires **72+ hours advance notice** before the original lesson start time.
+</Warning>
+
+Sends `LessonReschedule` email with Accept/Decline signed URL buttons.
+
+---
+
+### Approve lesson
+
+```
+PUT /api/lessons/{id}/approve
+```
+
+**Auth:** `web.api`
+
+Accepts a reschedule proposal. Updates lesson times to suggested values, sets state back to ACTIVE.
+
+Sends `LessonBooked` confirmation email.
+
+---
+
+### Cancel lesson
+
+```
+PUT /api/lessons/{id}/cancel
+```
+
+**Auth:** `web.api`
+
+Cancels the lesson. Triggers refund processing.
+
+---
+
+## Legacy v1 API
+
+### Lessons CRUD
+
+```
+GET    /api/v1/lessons
+POST   /api/v1/lessons
+GET    /api/v1/lessons/{id}
+PUT    /api/v1/lessons/{id}
+DELETE /api/v1/lessons/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Notes
+
+```
+GET    /api/v1/notes
+POST   /api/v1/notes
+GET    /api/v1/notes/{id}
+PUT    /api/v1/notes/{id}
+DELETE /api/v1/notes/{id}
+```
+
+**Auth:** `auth:api`
+
+Lesson notes with file attachments. When a tutor adds a note:
+1. Note saved with `text` and `summary`
+2. Files attached via polymorphic `fileables` table
+3. Student receives `LessonSummaryNote` email
+4. Student receives push notification with booking details
+
+---
+
+## Lesson states reference
+
+| State | Value | Transitions to |
+|-------|-------|---------------|
+| ACTIVE | 1 | RESCHEDULE, CANCELLED |
+| RESCHEDULE | 2 | ACTIVE (approved), CANCELLED (declined/expired) |
+| CANCELLED | 0 | _(terminal)_ |
+
+### Experience rating
+
+After a lesson, students can rate their experience (1-5):
+
+```
+PUT /api/v1/lessons/{id}
+Body: { "experience_rating": 4 }
+```

@@ -1,0 +1,83 @@
+---
+title: "Subscription Endpoints"
+description: "Tutor subscription management"
+---
+
+## Create subscription
+
+```
+POST /api/subscriptions
+```
+
+**Auth:** `web.api`
+
+Creates a Stripe subscription for the tutor. Supports trial periods.
+
+**Handler:** `SubscriptionService::subscribe()`
+
+---
+
+## Get billing portal
+
+```
+GET /api/subscriptions/portal
+```
+
+**Auth:** `auth:api`
+
+Returns Stripe Customer Portal URLs for self-service management:
+
+```json
+{
+  "actions": [
+    {
+      "type": "update_payment_method",
+      "url": "https://billing.stripe.com/..."
+    },
+    {
+      "type": "cancel",
+      "url": "https://billing.stripe.com/..."
+    }
+  ]
+}
+```
+
+---
+
+## Subscription webhook
+
+```
+POST /api/subscriptions/webhooks
+```
+
+**Auth:** None (public — secured via Stripe signature verification)
+
+**Handler:** `StripeService::handleSubscriptionWebhook()`
+
+Validates webhook signature using `STRIPE_SUBSCRIPTION_SIGNING_SECRET`. Updates subscription status in the database.
+
+---
+
+## Subscription statuses
+
+| Status | Meaning |
+|--------|---------|
+| `trialing` | In free trial period |
+| `active` | Active and paying |
+| `canceled` | Cancelled (soft-deleted) |
+| `incomplete` | Payment failed, awaiting retry |
+| `incomplete_expired` | Payment failed, subscription ended |
+
+Checked via `Subscription::isValid()` — returns `true` for `trialing` or `active`.
+
+---
+
+## Subscription products
+
+Defined in `subscription_products` table:
+
+| Field | Purpose |
+|-------|---------|
+| `product_id` | Stripe product ID |
+| `price_id` | Stripe price ID |
+| `trial_period` | Trial duration |

@@ -1,0 +1,177 @@
+---
+title: "Models"
+description: "Core Eloquent models, relationships, and domain logic"
+---
+
+## Model locations
+
+Models live in two directories:
+
+- **`app/Models/`** (root) — ~20 models including `Tutor`, `Coupon`, `File`, `Note`, `Subscription`, and non-Eloquent value objects
+- **`app/Models/v1/`** — ~107 models — this is where the main domain logic lives
+
+<Info>
+Most business logic is in the `v1/` models. When someone says "the User model" they mean `app/Models/v1/User.php`.
+</Info>
+
+## User model
+
+**`app/Models/v1/User.php`** — the central model. Extends Laravel's `Authenticatable`, implements `MustVerifyEmail`, uses `SoftDeletes`.
+
+### Key relationships
+
+```php
+// Teaching
+hasMany(Teach)                    // Subjects this tutor teaches
+hasMany(Lesson, 'tutor_id')      // Lessons as tutor (taughtLessons)
+belongsToMany(Lesson)            // Lessons as student
+
+// Personal
+hasOne(PersonalDetail)
+hasOne(Profile)
+hasOne(Education)
+hasOne(Profession)
+hasOne(Location)
+hasOne(MobileNumber)
+hasOne(UserSetting)
+hasMany(Child)
+belongsToMany(Language)
+belongsTo(Country)
+belongsTo(Role)
+
+// Payments
+hasMany(PaymentAccount)
+hasOne(Subscription)
+hasMany(Booking)
+belongsToMany(Coupon, 'coupon_uses')
+
+// Verification
+hasMany(VerificationAccount)
+hasOne(VerificationQualification)
+hasOne(VerificationDBS)
+
+// Integrations
+hasMany(OAuthServiceToken)
+hasMany(CalendarList)
+hasMany(Session)
+```
+
+### Profile completion
+
+Tutors go through a 4-step profile completion process. `getProfileCompletionPercentage()` tracks progress:
+
+1. **Taught subjects** — at least one `Teach` with a `LessonPrice`
+2. **Qualifications** — valid education OR valid qualification document
+3. **Bank account** — active `PaymentAccount` with linked `BankAccount`
+4. **Identity verification** — passed `VerificationAccount`
+
+A tutor is fully verified (`isVerified()`) when they have: profile picture, bio, primary address, mobile number, taught subjects, valid availability, passed identity verification, valid qualification/education, and valid DBS.
+
+### Key query scopes
+
+| Scope | What it filters |
+|-------|----------------|
+| `isVisible()` | `is_visible = true` |
+| `isAvailableOnDate($date)` | Not on holiday on given date |
+| `whoTeaches($subjectId)` | Has teach record for subject |
+| `whoHasValidAddress()` | Has primary address |
+| `whoHasValidMobileNumber()` | Has verified mobile |
+| `whoHasValidQualificationOrEducation()` | Has valid qual or education |
+| `whoHasValidDBS()` | DBS status is PASS |
+| `withDistance($lat, $lng)` | Adds distance calculation |
+| `withinDistance($distance)` | Filters by max travel distance |
+| `withBasicInfo()` | Eager loads common relationships |
+| `withReviews()` | Includes review aggregates |
+
+## Tutor model
+
+**`app/Models/Tutor.php`** — extends User via `HasParent` trait (from `calebporzio/parental`).
+
+```php
+class Tutor extends User {
+    use HasParent;
+    // Global TutorScope: WHERE role_id = 1
+}
+```
+
+Every query through `Tutor::` automatically filters to tutors only. Adds methods:
+- `isVerified()` — full profile + verification check
+- `shouldApplyManagementFee()` — first lesson of month logic
+- `getAvailableLessonLocations()` — based on verification status
+- `isGoogleConnected()` — Google Calendar status
+
+## Lesson model
+
+**`app/Models/v1/Lesson.php`** — uses `SoftDeletes` and `LoggableActivity` trait.
+
+### States
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `CANCELLED` | 0 | Lesson cancelled |
+| `ACTIVE` | 1 | Lesson confirmed/active |
+| `RESCHEDULE` | 2 | Reschedule proposed |
+
+### Key methods
+
+| Method | What it does |
+|--------|-------------|
+| `store($data)` | Creates new lesson with tutor, subject, level, times |
+| `reschedule($data)` | Proposes new time (72hr advance notice required) |
+| `approveRescheduledLesson()` | Accepts proposed reschedule |
+| `cancel()` | Cancels lesson |
+| `createLessonAddress($address)` | Copies address to LessonAddress |
+| `doesSuggestedDateTimeClashWithLesson()` | Conflict detection |
+| `userCanReview()` | Checks if review window is open |
+
+### Auto-calculated fields
+
+The model's `boot()` method auto-calculates `duration` in minutes whenever `start` and `finish` are set.
+
+## Booking model
+
+**`app/Models/v1/Booking.php`** — uses `SoftDeletes` and `LoggableActivity`.
+
+### States
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `REFUNDED` | 0 | Payment fully refunded |
+| `PAYED` | 1 | Payment completed |
+| `PENDING_APPROVAL` | 2 | Awaiting tutor approval |
+| `AWAITING_PAYMENT` | 3 | Payment not yet made |
+| `PARTIAL_REFUNDED` | 4 | Partially refunded |
+| `REQUIRES_CAPTURE` | 5 | Pre-authorized, awaiting capture |
+
+## Teach model
+
+**`app/Models/v1/Teach.php`** — the tutor↔subject relationship. Uses `SoftDeletes`.
+
+Each `Teach` record has:
+- One `Subject`
+- Many `SubjectLevels` (via `taught_subject_levels` pivot)
+- Many `ExamBoards` (via `taught_exam_boards` pivot)
+- One `LessonPrice` (the tutor's hourly rate for this subject)
+
+## Models with soft deletes
+
+These models use `SoftDeletes` — queries need `withTrashed()` to include deleted records:
+
+- `User`, `Booking`, `Lesson`, `Teach`
+- `Card`, `BankAccount`, `Child`
+- `VerificationAccount`, `Subscription`
+- `ExamBoard`
+
+## Non-Eloquent value objects
+
+Several "models" are plain PHP classes, not Eloquent:
+
+| Class | Purpose |
+|-------|---------|
+| `AvailableDateTime` | Wraps tutor + date + available time slots |
+| `AvailableTime` | Start/end time pair |
+| `LessonBreakedown` | Lesson cost calculation with commissions |
+| `LessonPriceBreakdown` | Full pricing with service fees and discounts |
+| `Search` | Search criteria container |
+| `SearchAvailabilityTime` | Available time representation for search |
+| `TutorReviewSummary` | Aggregated review data |

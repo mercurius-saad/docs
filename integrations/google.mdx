@@ -1,0 +1,106 @@
+---
+title: "Google Services"
+description: "Calendar sync, Maps geocoding, and OAuth integration"
+---
+
+## Google Calendar
+
+### Configuration
+
+```
+GOOGLE_CLIENT_SECRET  — OAuth client secret
+GOOGLE_CLIENT_ID      — OAuth client ID
+GOOGLE_REDIRECT_URI   — OAuth callback URL
+```
+
+Scopes (from `config/services.php`):
+- `Google_Service_Calendar::CALENDAR` — read/write calendar
+- `Google_Service_Calendar::CALENDAR_EVENTS` — read/write events
+- `Google_Service_Oauth2::USERINFO_EMAIL` — user email
+- `Google_Service_Oauth2::USERINFO_PROFILE` — user profile
+
+### OAuth flow
+
+**File:** `app/Http/Controllers/Integrations/GoogleIntegrationController.php`
+
+Same pattern as Zoom: tutor connects Google account, tokens stored in `oauth_service_tokens`.
+
+### Calendar service
+
+**File:** `app/Models/Services/CalendarService.php`
+
+| Method | Purpose |
+|--------|---------|
+| `getCalendarList()` | Fetches tutor's Google Calendar lists, syncs to `calendar_lists` table |
+| `getCalendarEvents($start, $end)` | Fetches events in date range for conflict checking |
+| `updateCalendar($id, $data)` | Updates calendar data |
+| `updateCalendarList($list, $provider)` | Syncs calendar lists to database |
+
+### Calendar event model
+
+**File:** `app/Models/v1/CalendarEvent.php`
+
+```
+calendar_events
+├── event_id (Google Calendar event ID)
+└── lesson_id → lessons
+```
+
+### Calendar list model
+
+**File:** `app/Models/CalendarList.php`
+
+```
+calendar_lists
+├── uid, title, is_active
+├── oauth_service_provider_id → oauth_service_providers
+└── user_id → users
+```
+
+### How it's used
+
+1. **Availability checking**: When calculating available time slots, `AvailabilityService` calls `CalendarService::getCalendarEvents()` to exclude times that clash with the tutor's Google Calendar events.
+
+2. **Lesson creation**: When a lesson is booked, calendar events can be created on the tutor's Google Calendar. The event ID is stored in `calendar_events`.
+
+### Checking connection
+
+```php
+$user->isGoogleCalendarConnected()  // checks oauth_service_tokens for Google provider
+```
+
+---
+
+## Google Maps
+
+### Configuration
+
+```
+GOOGLE_MAPS_BASE_URL  — Google Maps API base URL
+GOOGLE_MAPS_API_KEY   — API key
+```
+
+### Service
+
+**File:** `app/Models/Services/Google/GoogleMapsAPI.php`
+
+Uses Guzzle HTTP client (not the Google SDK) to call the Maps API directly.
+
+| Method | Purpose |
+|--------|---------|
+| `getGeoCodeResults($postCode, $country)` | Converts postcode to lat/lng coordinates |
+| `getReverseGeoCodeResults($geoCodeResults)` | Converts coordinates to street addresses |
+
+### Value objects
+
+| Class | File | Purpose |
+|-------|------|---------|
+| `GoogleGeoCodeResult` | `Services/Google/GoogleGeoCodeResult.php` | Lat, lng, postal code from geocode response |
+| `GoogleReverseGeoCodeResult` | `Services/Google/GoogleReverseGeoCodeResult.php` | Route, postal town, country, formatted address |
+| `GoogleCalendarEvent` | `Services/Google/GoogleCalendarEvent.php` | Summary, start, end from calendar event |
+
+### Where Maps API is used
+
+1. **Address search**: `AddressService::searchPostCode()` — geocodes a postcode and returns matching addresses
+2. **Lesson address display**: Booking emails include Google Maps links to lesson addresses
+3. **The BlackBox microservice** also uses Google Maps Distance Matrix API for travel time calculations

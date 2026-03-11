@@ -1,0 +1,199 @@
+---
+title: "Booking & Payments"
+description: "How lesson booking and the payment flow works"
+---
+
+## Overview
+
+The booking and payment flow involves several models and services working together:
+
+```
+Student checks availability → Creates booking → Makes payment → Tutor approves → Lesson happens → Payout to tutor
+```
+
+## Step 1: Check availability
+
+`GET /api/availabilites` → `AvailabilityService::getAvailableTimes()`
+
+**File:** `app/Models/Services/v1/AvailabilityService.php`
+
+The availability service:
+
+1. Resolves the tutor's `Teach` record for the subject
+2. Gets the tutor's weekly `DayAvailability` schedule
+3. Generates 15-minute interval time slots for the requested dates
+4. Filters out:
+   - Times that clash with existing lessons
+   - Times blocked by calendar events (Google Calendar sync)
+   - Times affected by travel time between lessons (via BlackBox)
+5. Handles timezone conversion (UTC offset from request)
+6. Returns `AvailableDateTime` collections with pricing via `LessonPriceBreakdown`
+
+### Lesson duration constraints
+
+From `config/app.php`:
+- **Minimum:** 15 minutes
+- **Maximum:** 120 minutes
+- **Default:** 60 minutes
+
+### Travel time logic
+
+**File:** `app/Models/v1/AvailabilityRequestTime.php`
+
+For in-person lessons, the system calculates travel time between lesson locations and creates buffer zones around existing lessons. Uses the BlackBox microservice for transit time estimates.
+
+## Step 2: Create booking
+
+`POST /api/bookings` → `BookingController`
+
+Creates:
+1. A `Lesson` record with start/finish times, subject, level, tutor
+2. A `Booking` record linking the lesson to the student
+3. A `LessonAddress` if it's an in-person lesson
+4. Optionally links children via `lesson_child` pivot
+
+Initial booking state: `AWAITING_PAYMENT (3)`
+
+## Step 3: Make payment
+
+`POST /api/payments/pay` → `PaymentController` → `StripeService::createCharge()`
+
+**File:** `app/Models/Services/Payments/StripeService.php`
+
+<Steps>
+
+<Step title="Create PaymentIntent">
+Creates a Stripe PaymentIntent with **manual capture** (`capture_method: manual`). This pre-authorizes the amount without charging immediately.
+
+```php
+// Key parameters:
+- amount (in pence/cents)
+- currency
+- payment_method (card token)
+- customer (Stripe customer ID)
+- transfer_group (for Connect payouts)
+- confirm: true
+- capture_method: 'manual'
+```
+</Step>
+
+<Step title="Handle 3D Secure">
+If Stripe returns `requires_action`, the response includes a `redirectURL` for the client to complete 3D Secure authentication. The client handles this and calls back.
+</Step>
+
+<Step title="Handle requires_capture">
+If payment is `requires_capture`, the booking state updates to `REQUIRES_CAPTURE (5)`. The payment is authorized but not yet charged.
+</Step>
+
+<Step title="Create receipt">
+`StripeService::createReceipt()` creates a `PaymentReceipt` with:
+- `charge_id` — Stripe charge reference
+- `amount` — total charged
+- `application_fee_id` and `application_fee_amount`
+- `commission_id` — links to active commission for fee calculation
+- `coupon_id` — if a discount code was used
+</Step>
+
+<Step title="Apply coupon (if any)">
+If a coupon is provided:
+- Validates via `Coupon::validate()` (not expired, not exceeded usage limit)
+- Calculates discount (amount-based or percentage-based with max cap)
+- Records usage in `coupon_uses` pivot
+</Step>
+
+</Steps>
+
+### Payment status checking
+
+`GET /api/payments/{id}/status` → returns current PaymentIntent status:
+
+| Status | Constant | Meaning |
+|--------|----------|---------|
+| `processing` | `STATUS_PROCESSING` | Payment being processed |
+| `succeeded` | `STATUS_SUCCEEDED` | Payment completed |
+| `canceled` | `STATUS_CANCELLED` | Payment cancelled |
+| `requires_action` | `STATUS_REQUIRES_ACTION` | 3D Secure needed |
+| `requires_capture` | `STATUS_REQUIRES_CAPTURE` | Pre-authorized, awaiting capture |
+
+## Step 4: Payout to tutor
+
+Payouts are handled by the `SendPendingPayouts` scheduled job (runs every 15 minutes).
+
+**File:** `app/Jobs/SendPendingPayouts.php`
+
+<Steps>
+
+<Step title="Find eligible bookings">
+Queries bookings that:
+- Have state `PAYED (1)`
+- Have a `PaymentReceipt` with no `transfer_id` yet
+- Are 2+ days old (settlement period)
+</Step>
+
+<Step title="Create Stripe transfer">
+`StripeService::createPayout()` creates a Stripe Connect transfer:
+- Destination: tutor's Stripe Connect account (`acct_*`)
+- Amount: lesson price minus platform fees
+- Uses either `transfer_group` or `source_transaction` method
+</Step>
+
+<Step title="Notify internal team">
+Sends `SendPendingPayoutStatus` email with:
+- Booking ID
+- Transfer ID (on success)
+- Error message (on failure)
+</Step>
+
+</Steps>
+
+## Commission calculation
+
+**File:** `app/Models/v1/Commission.php`
+
+The active commission record defines fee percentages:
+
+| Fee | Field | Description |
+|-----|-------|-------------|
+| Commission fee | `commission_fee` | Platform commission on lesson price |
+| Service fee | `service_fee` | Fee charged to student |
+| Payout fee | `payout_fee` | Fee on tutor payout |
+| Payout amount fee | `payout_amount_fee` | Fixed payout fee |
+| Management fee | `account_management_amount_fee` | Monthly account management (first lesson of month) |
+
+<Warning>
+Only **one commission** can be active at a time. `Commission::addNewModel()` disables all existing commissions before inserting a new one.
+</Warning>
+
+The `PaymentReceipt` model auto-calculates the full fee breakdown in its `boot()` method using `CommissionService`.
+
+## Refunds
+
+`StripeService::refund()` supports both full and partial refunds:
+
+```php
+// Full refund
+$stripeService->refund($paymentReceipt);
+
+// Partial refund
+$stripeService->refund($paymentReceipt, $amount);
+```
+
+Booking state transitions:
+- Full refund → `REFUNDED (0)`
+- Partial refund → `PARTIAL_REFUNDED (4)`
+
+## Coupon system
+
+**File:** `app/Models/Coupon.php`
+
+| Type | Constant | Description |
+|------|----------|-------------|
+| One-time use | `ONE_TIME_USE` | Can be used once per user |
+| Two-time use | `TWO_TIME_USE` | Can be used twice per user |
+
+| Discount type | Constant | Description |
+|--------------|----------|-------------|
+| Amount | `DISCOUNT_TYPE_AMOUNT` | Fixed amount off |
+| Percentage | `DISCOUNT_TYPE_PERCENT` | Percentage off (with optional `max_discount_amount` cap) |
+
+Validation checks: expiry dates, usage count per user.

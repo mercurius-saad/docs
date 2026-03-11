@@ -1,0 +1,151 @@
+---
+title: "Events & Notifications"
+description: "Event system, email templates, and push notification infrastructure"
+---
+
+## Events
+
+Three custom events in `app/Events/`:
+
+| Event | Properties | Fired when |
+|-------|-----------|------------|
+| `AddressUpdated` | user, address | User updates their address |
+| `MobileNumberUpdated` | user, mobileNumber | User updates their mobile number |
+| `PersonalDetailUpdated` | user, personalDetail | User updates personal details (DOB, etc.) |
+
+Plus Laravel's built-in `Registered` event (fired after user registration).
+
+## Event-listener wiring
+
+**File:** `app/Providers/EventServiceProvider.php`
+
+```
+Registered
+├── SendVerificationEmail          → sends email verification link (6hr expiry)
+├── SendNewAccountCreatedEmail     → notifies hello@tutorbloc.com (production only)
+└── SendNewTutorAccountCreatedEmail → notifies internal team (production + staging)
+
+AddressUpdated
+└── UpdatePaymentAddress           → syncs address to Stripe customer
+
+MobileNumberUpdated
+└── UpdatePaymentMobileNumber      → syncs phone to Stripe customer
+
+PersonalDetailUpdated
+└── UpdatePaymentPersonalDetail    → syncs DOB to Stripe (tutors only)
+```
+
+<Warning>
+`SendNewAccountCreatedEmail` checks `config('env')` instead of `config('app.env')` — this is likely a bug that may cause it to silently fail. **Confirm with team.**
+</Warning>
+
+## Email templates
+
+16 Mailable classes in `app/Mail/`. All use `Queueable` and `SerializesModels`.
+
+### Lesson lifecycle emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `LessonBooked` | Tutor or student | Booking details / reschedule accepted | Booking confirmed or reschedule approved |
+| `LessonCancelled` | Other party | Cancellation notice | Lesson cancelled |
+| `LessonReschedule` | Other party | "please respond to your reschedule request!" | Reschedule proposed (includes Accept/Decline buttons) |
+| `LessonSummaryNote` | Tutor or student | Varies by recipient | Tutor adds lesson notes |
+
+### Account & profile emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `NewAccountCreated` | hello@tutorbloc.com | "[NEW ACCOUNT] {user} has just joined!" | User registers (production only) |
+| `NewTutorAccountCreated` | Internal team | "[TUTOR] {name}, has just created an account!" | Tutor registers |
+| `ClaimUsername` | Tutor | "[ACTION] Hey {name}, claim your username!" | Manual campaign job |
+| `ClaimUsernameReminder` | Tutor | "[ACTION] 48 hours left to claim!" | Manual reminder job |
+| `ShareableLink` | Tutor | "Hey {name}, here's your unique shareable link!" | Username assigned |
+| `UserDeleted` | hello@tutorbloc.com | "Account deleted" | User deletes account |
+
+### Review & notification emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `ReviewTutor` | Student/parent | "Hey {reviewer}, please review {tutor}!" | Daily review request job |
+| `LearnerReview` | Internal team | "[TUTOR] {reviewer}, has just submit a review!" | Student submits review |
+
+### Integration emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `ReconnectZoom` | Tutor | "please reconnect your Zoom account!" | Zoom token validation fails |
+
+### Payment emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `SendPendingPayoutStatus` | Internal team | "[INTERNAL] Payout to {tutor} {status}" | Payout job success/failure |
+| `SendFundFailure` | Internal team | "Send fund failure" | Payment transfer fails |
+
+### Verification emails
+
+| Class | Recipient | Subject pattern | Trigger |
+|-------|----------|----------------|---------|
+| `TutorIDVerificationStatusUpdated` | Internal team | Varies by status (PASS/FAIL/REVIEW) | Verification account status changes |
+
+### Email recipients pattern
+
+Most emails follow this pattern:
+- **Primary recipient:** The relevant user (tutor, student, or parent)
+- **BCC:** Internal team addresses (`MAIL_TO_INTERNAL_TEAM_ADDRESSES` env var)
+- **Some emails** go directly to `hello@tutorbloc.com` (hardcoded)
+
+## Notifications
+
+Two notification classes in `app/Notifications/`:
+
+| Class | Channel | Expiry | Purpose |
+|-------|---------|--------|---------|
+| `ResetPassword` | mail | 6 minutes | Password reset link |
+| `VerifyEmail` | mail | 6 hours | Email verification link (signed URL) |
+
+## Push notifications
+
+Push notifications are sent via the `RemotePushNotifiable` trait. The system supports:
+
+### Apple Push Notification Service (APNS)
+
+Configured via env vars: `APNS_KEY_FILE`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`
+
+Device tokens stored in `user_devices` table:
+- `ios_device_token`
+- `ios_aps_environment` (production/sandbox)
+- `is_push_notification_enabled`
+
+**File:** `app/Models/v1/UserDevice.php`
+
+The `UserDevice` model handles token deduplication — `removeDeviceTokenIfExists()` prevents the same device token being registered to multiple users.
+
+### Firebase Cloud Messaging (FCM)
+
+Env vars exist (`FCM_API_ACCESS_KEY`, `FCM_URL`) but no FCM service class was found in the codebase. *May be incomplete or handled externally — confirm with team.*
+
+### Push notification triggers
+
+| Trigger | Notification content |
+|---------|---------------------|
+| Lesson reminder (2hr/24hr) | Upcoming lesson details |
+| Tutor reviewed | "You've been reviewed" |
+| Lesson note added | Note content with booking action |
+| Profile completion nudge | "Complete your profile" with app link |
+| Review request | "Please review your tutor" |
+
+## Broadcast channels
+
+**File:** `routes/channels.php`
+
+A private broadcast channel is registered for user-specific events:
+
+```php
+Broadcast::channel('user.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
+});
+```
+
+Broadcasting driver defaults to `null` (disabled). Can be switched to Pusher or Redis via `BROADCAST_DRIVER` env var. Pusher credentials are configured in `config/broadcasting.php`.

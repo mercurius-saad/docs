@@ -1,0 +1,127 @@
+---
+title: "Middleware Reference"
+description: "Complete middleware stack and what each layer does"
+---
+
+## Global middleware
+
+Applied to **every request** (from `app/Http/Kernel.php`):
+
+| Order | Middleware | Purpose |
+|-------|-----------|---------|
+| 1 | `CheckForMaintenanceMode` | Returns 503 if app is in maintenance |
+| 2 | `ValidatePostSize` | Rejects oversized POST bodies |
+| 3 | `TrimStrings` | Trims whitespace from all input (excludes `password`, `password_confirmation`) |
+| 4 | `ConvertEmptyStringsToNull` | Converts `""` to `null` |
+| 5 | `TrustProxies` | Trusts all proxies, reads X-Forwarded-* headers |
+| 6 | `SecureHeaders` | Adds security headers, removes server identification |
+| 7 | `TrustedOrigins` | CORS validation |
+
+## API middleware group
+
+Applied to all `/api/*` routes:
+
+| Middleware | Purpose |
+|-----------|---------|
+| `throttle:300,1` | 300 requests per minute rate limit |
+| `bindings` | Route model binding |
+| `ETag` | HTTP caching via ETag headers |
+
+## Web middleware group
+
+Applied to web routes:
+
+| Middleware | Purpose |
+|-----------|---------|
+| `EncryptCookies` | Cookie encryption |
+| `AddQueuedCookiesToResponse` | Cookie handling |
+| `StartSession` | Session management |
+| `ShareErrorsFromSession` | Validation error sharing |
+| `VerifyCsrfToken` | CSRF protection |
+| `SubstituteBindings` | Route model binding |
+
+## Route middleware (named)
+
+Available for individual route assignment:
+
+### `auth:api`
+
+Standard Laravel auth using the custom `redis.token` guard. Requires a valid session token. Returns 401 if unauthenticated.
+
+**File:** Laravel's built-in `Authenticate` middleware
+
+### `web.api`
+
+**File:** `app/Http/Middleware/WebAPI.php`
+
+Hybrid authentication — tries three methods in order:
+1. Existing `Auth::user()` (from session/token)
+2. Valid Laravel signed URL
+3. Decrypted `secret` request parameter (encrypted user ID)
+
+Returns 401 if all three fail. Used for booking/lesson management endpoints where links in emails need to work without login.
+
+### `internal`
+
+**File:** `app/Http/Middleware/API/Internal.php`
+
+Requires authenticated user with `role_id = 200` (Internal role). Returns 403 if not an internal user.
+
+### `signed`
+
+Laravel's built-in URL signing middleware. Validates that the URL has a valid signature and hasn't expired. Used for username claim flows.
+
+### `verified`
+
+Laravel's built-in email verification middleware. Ensures user has verified their email.
+
+### `throttle`
+
+Laravel's rate limiting. Default API config: `300,1` (300 requests per minute).
+
+### `etag`
+
+**File:** `app/Http/Middleware/API/v1/ETag.php`
+
+Implements HTTP ETag caching. Only applies to cacheable HTTP methods (GET, HEAD). Returns 304 Not Modified if client's `If-None-Match` matches response ETag.
+
+### `guest`
+
+Redirects authenticated users away from guest-only routes (login, register).
+
+### `can`
+
+Laravel's authorization middleware for policy checks.
+
+## Custom middleware details
+
+### TrustedOrigins
+
+**File:** `app/Http/Middleware/TrustedOrigins.php`
+
+```
+Request → Check Origin header
+├── Matches TRUSTED_ORIGINS (exact) → Set CORS headers, continue
+├── Matches WHITELISTED_ORIGINS (substring) → Set CORS headers, continue
+└── No match → 403 Forbidden
+```
+
+CORS headers set on valid origins:
+- `Access-Control-Allow-Origin`
+- `Access-Control-Allow-Methods`
+- `Access-Control-Allow-Headers`
+
+### SecureHeaders
+
+**File:** `app/Http/Middleware/SecureHeaders.php`
+
+**Removes:** `X-Powered-By`, `Server`
+
+**Adds:**
+```
+Referrer-Policy: no-referrer-when-downgrade
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```

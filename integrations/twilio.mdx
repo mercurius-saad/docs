@@ -1,0 +1,75 @@
+---
+title: "Twilio"
+description: "SMS phone number verification"
+---
+
+## Overview
+
+Twilio is used exclusively for **phone number verification** via the Verify V2 API. No voice calls or general SMS messaging.
+
+**File:** `app/Models/Services/Integrations/TwilioService.php`
+
+**SDK:** `twilio/sdk` v6.9
+
+## Configuration
+
+```
+TWILIO_ACCOUNT_SID      — Twilio account SID
+TWILIO_AUTH_TOKEN        — Twilio auth token
+TWILIO_VERIFICATION_SID — Twilio Verify service SID
+```
+
+Config: `config/services.php` under `twilio` key.
+
+## How it works
+
+### Step 1: Request verification code
+
+**Endpoint:** `GET /api/mobile-numbers/code`
+
+```php
+TwilioService::requestMobileVerification($mobileNumber)
+```
+
+Sends a 6-digit SMS code to the provided mobile number via Twilio Verify V2.
+
+### Step 2: Verify code
+
+**Endpoint:** `GET /api/mobile-numbers/verify`
+
+```php
+TwilioService::checkMobileVerification($mobileNumber, $code)
+```
+
+Validates the code against Twilio's Verify API. If valid, the `MobileNumber` model is updated with a `verified_at` timestamp.
+
+## Mobile number model
+
+**File:** `app/Models/v1/MobileNumber.php`
+
+```
+mobile_numbers
+├── country_code
+├── mobile_number
+├── verified_at (timestamp — null if unverified)
+└── user_id → users
+```
+
+Key methods:
+- `store()` — creates new mobile number record
+- `storeAndVerify()` — creates and immediately marks as verified
+- `isTaken()` — checks if number is already registered
+- `existsForUserId()` — checks if user already has a number
+
+Fires `MobileNumberUpdated` event on update → triggers `UpdatePaymentMobileNumber` listener which syncs the phone number to Stripe.
+
+## Endpoints
+
+Both verification endpoints are **public** (no auth required):
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/mobile-numbers/code` | GET | Send verification SMS |
+| `/api/mobile-numbers/verify` | GET | Validate verification code |
+
+Legacy v1 equivalents exist at `/api/v1/mobile-numbers/code` and `/api/v1/mobile-numbers/verify`.

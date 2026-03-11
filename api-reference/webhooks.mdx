@@ -1,0 +1,87 @@
+---
+title: "Webhooks"
+description: "Incoming webhook endpoints from third-party services"
+---
+
+## Overview
+
+The API exposes three webhook endpoints for third-party services. All are **public** (no auth middleware) — security relies on signature verification.
+
+---
+
+## Stripe payment webhooks
+
+```
+POST /api/v1/payments/webhooks/accounts
+```
+
+**Source:** Stripe
+
+**Verification:** Validates webhook signature using `STRIPE_SIGNING_SECRET` env var.
+
+Handles Stripe payment events (charge succeeded, failed, etc.) for Stripe Connect accounts.
+
+---
+
+## Stripe subscription webhooks
+
+```
+POST /api/subscriptions/webhooks
+```
+
+**Source:** Stripe
+
+**Verification:** Validates webhook signature using `STRIPE_SUBSCRIPTION_SIGNING_SECRET` env var.
+
+**Handler:** `StripeService::handleSubscriptionWebhook()`
+
+Processes subscription lifecycle events:
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+- `invoice.payment_succeeded`
+
+Updates `subscriptions` table status accordingly.
+
+---
+
+## Identity verification webhooks
+
+```
+POST /api/v1/verification/status
+```
+
+**Source:** Onfido
+
+**Verification:** Uses `ONFIDO_WEBHOOK_TOKEN` env var.
+
+Receives verification status updates when Onfido completes an identity check. Updates `verification_accounts` table with new status (PASS, FAIL, or INTERNAL_REVIEW).
+
+Triggers `TutorIDVerificationStatusUpdated` email to internal team.
+
+---
+
+## Webhook security
+
+<Warning>
+All webhook endpoints are publicly accessible. The only protection is signature/token verification. Ensure the signing secrets are correctly configured in the environment.
+</Warning>
+
+| Webhook | Secret env var | Verification method |
+|---------|---------------|-------------------|
+| Stripe payments | `STRIPE_SIGNING_SECRET` | Stripe signature header |
+| Stripe subscriptions | `STRIPE_SUBSCRIPTION_SIGNING_SECRET` | Stripe signature header |
+| Onfido verification | `ONFIDO_WEBHOOK_TOKEN` | Token comparison |
+
+---
+
+## Push notification webhook (v1)
+
+```
+POST /api/v1/remote-push-notification
+```
+
+**Auth:** None
+
+Handles incoming push notification callbacks. Used for delivery confirmation or status updates.

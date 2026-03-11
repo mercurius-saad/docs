@@ -1,0 +1,112 @@
+---
+title: "Registration Flow"
+description: "How tutor and student registration works end-to-end"
+---
+
+## Entry point
+
+`POST /api/auth/register` → `RegisterController` → `RegistrationService::register()`
+
+**File:** `app/Models/Services/RegistrationService.php`
+
+## Registration flow
+
+<Steps>
+
+<Step title="Validate input">
+- Email: unique, valid format
+- Password: minimum 6 characters
+- Username: validated via `UsernameService` (5-20 chars, starts with letter, alphanumeric only)
+</Step>
+
+<Step title="Create user">
+Creates user record with:
+- `firstname`, `lastname`, `email`, `password` (hashed)
+- `country_id` — from request or defaults to GB
+- `role_id` — TUTOR (1), STUDENT (2), or PARENT (3)
+- `username` — validated unique
+</Step>
+
+<Step title="Set personal details">
+- Creates `PersonalDetail` with date of birth
+- Associates profile picture (moves from temp storage to permanent S3 location)
+- Associates address if provided
+- Associates mobile number if provided
+</Step>
+
+<Step title="Tutor-specific setup">
+If the user is a tutor:
+1. **DBS association** — links DBS document if provided
+2. **Payment card** — adds Stripe payment method via `StripeService::createCard()`
+3. **Subscription** — creates Stripe subscription via `SubscriptionService::subscribe()`
+</Step>
+
+<Step title="Fire events">
+Fires the `Registered` event, which triggers three listeners:
+1. `SendVerificationEmail` — sends email verification link (6-hour expiry)
+2. `SendNewAccountCreatedEmail` — notifies `hello@tutorbloc.com` (production only)
+3. `SendNewTutorAccountCreatedEmail` — notifies internal team (production + staging, tutors only)
+</Step>
+
+<Step title="Create session">
+After registration, `SessionService::createSession()` auto-logs the user in and returns a session token.
+</Step>
+
+</Steps>
+
+## Tutor profile completion
+
+After registration, tutors must complete a 4-step profile before becoming visible:
+
+```
+Step 1: Add taught subjects (Teach + LessonPrice + SubjectLevels + ExamBoards)
+Step 2: Add education/qualifications
+Step 3: Link bank account (Stripe Connect)
+Step 4: Complete identity verification (Onfido/Yoti)
+```
+
+Progress is tracked via `User::getProfileCompletionPercentage()`.
+
+### Full visibility requirements
+
+A tutor becomes searchable (`is_visible = true`) only when ALL of these are true:
+
+| Requirement | Check method |
+|------------|-------------|
+| Profile picture uploaded | `hasProfilePicture()` |
+| Video uploaded | `hasVideo()` |
+| Bio written (max 500 chars) | `hasBio()` |
+| Primary address set | `hasPrimaryAddress()` |
+| Mobile number verified | `hasMobileNumber()` |
+| At least one subject taught | `hasTaughtSubjects()` |
+| Valid availability set | `hasValidAvailability()` |
+| Identity verification passed | `hasPassedVerification()` |
+| Valid qualification or education | `hasValidQualification()` or `hasValidEducation()` |
+| Valid DBS check | `hasValidDBS()` |
+| Active subscription | `hasValidSubscription()` |
+
+### Profile completion notification
+
+The `SendTutorProfileCompletionNotification` job runs daily at 10:00 UTC. It targets tutors created 3 days ago with incomplete profiles and sends a push notification nudge.
+
+## Login flow
+
+`POST /api/auth/login` → `LoginController` → `SessionService::createSession()`
+
+1. Validates credentials via `Auth::guard()->retrieveByCredentials()`
+2. Generates token: `md5(uniqid($userId, true))`
+3. Stores token in Redis (1-year expiry)
+4. Creates `Session` record in database
+5. Returns token to client
+
+## Password reset
+
+`POST /api/auth/forgot` → `ForgotPasswordController`
+
+Sends `ResetPassword` notification with a signed token (6-minute expiry).
+
+## Account deletion
+
+`DELETE /api/auth` → requires `auth:api`
+
+Soft-deletes the user. Sends `UserDeleted` email to `hello@tutorbloc.com`.

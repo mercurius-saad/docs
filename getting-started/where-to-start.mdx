@@ -1,0 +1,93 @@
+---
+title: "Where to Start"
+description: "The first files every new developer should read"
+---
+
+If you're new to this codebase, read these five files first — in this order. They'll give you a mental model of how everything fits together.
+
+## The essential five
+
+<Steps>
+
+<Step title="User model" icon="user">
+**`app/Models/v1/User.php`**
+
+The central model — every feature touches it. Understand:
+- All 30+ relationships (`hasMany`, `belongsTo`, `hasOne`, `belongsToMany`)
+- The extensive query scopes (`withBasicInfo`, `isAvailableOnDate`, `isVisible`, `whoTeaches`, `withDistance`, etc.)
+- Profile completion logic: `getProfileCompletionPercentage()`, `isVerified()`, `isProfileComplete()`
+- Verification checks: `hasPassedVerification()`, `hasValidQualification()`, `hasValidDBS()`
+- The `Tutor` model (`app/Models/Tutor.php`) extends User via `HasParent` trait with a `TutorScope` global scope
+
+<Tip>
+The `v1/` directory contains ~107 models — this is where the real domain logic lives, not the root `Models/` directory.
+</Tip>
+</Step>
+
+<Step title="Lesson + Booking models" icon="calendar-check">
+**`app/Models/v1/Lesson.php`** + **`app/Models/v1/Booking.php`**
+
+The core domain pair. Understand:
+- Lesson states: `ACTIVE (1)`, `RESCHEDULE (2)`, `CANCELLED (0)`
+- Booking states: `AWAITING_PAYMENT (3)` → `REQUIRES_CAPTURE (5)` → `PAYED (1)` → `REFUNDED (0)` / `PARTIAL_REFUNDED (4)`
+- The `store()`, `reschedule()`, `approveRescheduledLesson()`, `cancel()` methods on Lesson
+- How Booking links a Lesson to a User with a PaymentReceipt
+- The 72-hour reschedule rule
+- Soft deletes on both models
+</Step>
+
+<Step title="StripeService" icon="credit-card">
+**`app/Models/Services/Payments/StripeService.php`**
+
+The payment engine. Trace the flow:
+1. `createCustomer()` — creates Stripe customer, links to PaymentAccount
+2. `createCard()` — validates and attaches payment method
+3. `createCharge()` — creates PaymentIntent with manual capture, handles 3D Secure
+4. `createReceipt()` — records payment receipt with commission breakdown
+5. `createPayout()` — transfers funds to tutor via Stripe Connect
+6. `refund()` — full or partial refund
+
+Also: `handleSubscriptionWebhook()` for processing Stripe webhook events.
+</Step>
+
+<Step title="Routes + WebAPI middleware" icon="route">
+**`routes/api.php`** + **`app/Http/Middleware/WebAPI.php`**
+
+How requests flow in:
+- `routes/api.php` — current API routes under `/api/*`
+- `routes/legacy-api.php` — v1 routes under `/api/v1/*`
+- The `WebAPI` middleware is critical — it implements hybrid auth: existing Auth::user() OR signed URL OR **encrypted user ID as "secret"**
+- Understand which endpoints use `auth:api` vs `web.api` vs `internal` vs public access
+</Step>
+
+<Step title="RegistrationService" icon="user-plus">
+**`app/Models/Services/RegistrationService.php`**
+
+The complete registration flow. Shows how all pieces wire together:
+- User creation with role, country
+- DOB, profile picture, address, mobile number setup
+- For tutors: DBS association, payment card, Stripe subscription
+- File handling: moves from temp storage to permanent
+- Fires `Registered` event → triggers email verification + internal notifications
+</Step>
+
+</Steps>
+
+## After the essentials
+
+Once you've read the five above, explore these next:
+
+<CardGroup cols={2}>
+  <Card title="SearchService" icon="magnifying-glass" href="/workflows/search">
+    `app/Models/Services/v1/SearchService.php` — complex tutor search with multiple filter scopes
+  </Card>
+  <Card title="AvailabilityService" icon="clock" href="/workflows/booking-and-payments">
+    `app/Models/Services/v1/AvailabilityService.php` — availability calculation with calendar conflicts and travel time
+  </Card>
+  <Card title="Scheduled jobs" icon="clock-rotate-left" href="/backend/jobs-and-scheduling">
+    `app/Console/Kernel.php` — 9 scheduled jobs that run the background operations
+  </Card>
+  <Card title="Transformers" icon="arrows-rotate" href="/backend/services">
+    `app/Models/Transformers/v1/` — 15 transformer classes that format API responses
+  </Card>
+</CardGroup>

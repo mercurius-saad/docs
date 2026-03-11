@@ -1,0 +1,144 @@
+---
+title: "Tutor Search"
+description: "How tutor search and filtering works"
+---
+
+## Entry point
+
+`POST /api/v1/search` or `GET /api/v1/search` → `SearchController` → `SearchService::findTutors()`
+
+**File:** `app/Models/Services/v1/SearchService.php`
+
+## Search parameters
+
+The `Search` model (`app/Models/v1/Search.php`) defines the search criteria:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | string | Subject slug/path |
+| `date` | date | Requested lesson date |
+| `dayOfTheWeek` | string | Day of week for availability |
+| `duration` | int | Lesson duration in minutes |
+| `availabilityTimes` | array | Requested time slots |
+| `subjectId` | int | Subject filter |
+| `subjectLevelIds` | array | Subject level filters |
+| `examBoards` | array | Exam board filters |
+| `lat` / `lng` | float | Search location coordinates |
+| `sort` | string | Sort order |
+| `filters` | array | Additional filters (see below) |
+
+### Filter keys
+
+| Key | Values |
+|-----|--------|
+| `FILTER_LESSON_TYPE` | online, tutors_home, students_home |
+| `FILTER_GENDER` | male, female |
+| `FILTER_LANGUAGE` | language ID |
+
+## How search works
+
+<Steps>
+
+<Step title="Resolve coordinates">
+If no lat/lng provided, `PostcodeService` looks up coordinates from the postcode. Results are cached for 3 months via `postcodes.io` API.
+</Step>
+
+<Step title="Build base query">
+Starts with `Tutor::query()` (already scoped to role_id=1) and chains multiple scopes:
+
+```php
+Tutor::withBasicInfo()
+    ->isVisible()
+    ->whoTeaches($subjectId)
+    ->whoHasValidAddress()
+    ->whoHasValidMobileNumber()
+    ->whoHasValidQualificationOrEducation()
+    ->whoHasValidDBS()
+    // ... more scopes
+```
+</Step>
+
+<Step title="Filter by availability">
+Uses `isAvailableOnDay()` or `isAvailableOnDate()` scopes. Checks:
+- Tutor has availability on the requested day/date
+- Tutor is not on holiday (`unavailable_from`/`unavailable_until`)
+- No clashing existing lessons
+- Available time slots match requested times
+</Step>
+
+<Step title="Filter by location">
+For in-person lessons:
+- `withDistance($lat, $lng)` — adds a calculated distance column using the Haversine formula
+- `withinDistance()` — filters by tutor's `max_travel_distance`
+
+For online lessons: location filtering is skipped.
+</Step>
+
+<Step title="Apply additional filters">
+Gender, language, lesson type filters applied via `withFilters()` scope.
+</Step>
+
+<Step title="Check advance booking window">
+`getAllUnavailableTutorIds()` checks a 14-day advance booking window. Tutors unavailable across the entire window are excluded.
+
+```php
+const MAX_ADVANCE_BOOKING_AVAILABILITY = 14; // days
+```
+</Step>
+
+<Step title="Sort and paginate">
+Results sorted via `sortResultsBy()` scope and returned with pagination via `ServicePaginatorResponse`.
+</Step>
+
+</Steps>
+
+## Response format
+
+Transformed via `SearchTransformer`:
+
+```json
+{
+  "id": 123,
+  "firstname": "Jane",
+  "lastname": "D",
+  "profile_picture_url": "...",
+  "location": {
+    "distance": 5  // km, ceiled
+  },
+  "profile": {
+    "tutoring_experience": "2 years 3 months"
+  },
+  "teaching_info": {
+    "teach_id": 45,
+    "subject": { "id": 1, "title": "Mathematics" },
+    "subject_level": { "id": 2, "title": "GCSE" },
+    "exam_boards": [...]
+  },
+  "lesson_price_breakdown": {
+    "sign": "£",
+    "currency_code": "GBP",
+    "lesson_price": "30.00",
+    "service_fee": "3.00",
+    "total": "33.00"
+  }
+}
+```
+
+## BlackBox distance service
+
+For travel time calculations between tutor and student locations, the API calls the **BlackBox microservice** (runs as a Docker sidecar on port 3000).
+
+**File:** `app/BlackBox/Models/Distance.php`
+
+- Calculates transit distance/duration between two UK postcodes
+- Results cached for 2 days
+- Returns `DistanceResponse` with `getDuration()` (seconds) and `getMilesAway()` (converted from meters)
+- Uses Google Maps Distance Matrix API under the hood
+
+## PostcodeService
+
+**File:** `app/Models/Services/PostcodeService/PostcodeService.php`
+
+- Fetches postcode coordinates from `postcodes.io` public API
+- Results cached for 3 months
+- Returns `PostcodeResponse` with `getLat()` and `getLng()`

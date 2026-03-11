@@ -1,0 +1,126 @@
+---
+title: "Zoom & Daily.co"
+description: "Video meeting integrations for online lessons"
+---
+
+## Overview
+
+The platform supports two video meeting providers:
+
+| Provider | Auth method | Use case |
+|----------|-----------|----------|
+| **Zoom** | OAuth 2.0 (tutor connects their account) | Primary video solution |
+| **Daily.co** | API key | Alternative / fallback |
+
+## Zoom
+
+### Configuration
+
+```
+ZOOM_CLIENT_SECRET       — OAuth client secret
+ZOOM_CLIENT_ID           — OAuth client ID
+ZOOM_REDIRECT_URI        — OAuth callback URL
+ZOOM_VERIFICATION_TOKEN  — Webhook verification token
+```
+
+### OAuth flow
+
+**Files:** `app/Http/Controllers/Integrations/ZoomIntegrationController.php`
+
+1. Tutor initiates connection from frontend
+2. Redirected to Zoom OAuth consent screen
+3. Zoom redirects back to `ZOOM_REDIRECT_URI` with auth code
+4. Backend exchanges code for access/refresh tokens
+5. Tokens stored in `oauth_service_tokens` table
+
+```
+oauth_service_tokens
+├── uid (Zoom user ID)
+├── code (auth code)
+├── access_token
+├── refresh_token
+├── expires_in
+├── email
+├── oauth_service_provider_id → oauth_service_providers
+├── user_id → users
+└── reconnection_attempts (tracks failed reconnections)
+```
+
+### Token validation
+
+The `ValidateZoomTokens` scheduled job runs daily at 08:30 UTC (production only):
+
+1. Fetches all Zoom OAuth tokens
+2. Validates each by calling the Zoom API
+3. If invalid: sends `ReconnectZoom` email to the tutor
+4. Tracks reconnection attempts via `updateReconnectionAttempts()`
+5. If `hasReachedMaxReconnectionAttempts()`: deletes the token
+
+### Meeting creation
+
+When an online lesson is booked, a Zoom meeting is created via the tutor's connected account. The meeting details are stored in the `meetings` table.
+
+### Checking connection
+
+```php
+$user->isZoomConnected()  // checks oauth_service_tokens for Zoom provider
+```
+
+## Daily.co
+
+**File:** `app/Models/Services/DailyMeetingService.php`
+
+### Configuration
+
+```
+DAILY_API_KEY — Daily.co API key
+```
+
+### How it works
+
+Daily.co is used via a simpler API-key-based integration (no OAuth flow per user).
+
+### Creating a meeting
+
+```php
+DailyMeetingService::createMeeting($lesson)
+```
+
+Creates a Daily.co room with:
+- Emoji reactions enabled
+- Hand raising enabled
+- Room name based on lesson ID
+- Expiry dates based on lesson times
+
+### Generating join URLs
+
+```php
+DailyMeetingService::createJoinURL($host, $roomName, $user)
+```
+
+Generates meeting tokens with user identity embedded, returns a join URL.
+
+### Other operations
+
+```php
+DailyMeetingService::updateMeeting($meeting, $start, $finish)  // Update expiry
+DailyMeetingService::deleteMeeting($meeting)                    // Delete room
+```
+
+## Meeting model
+
+**File:** `app/Models/v1/Meeting.php`
+
+```
+meetings
+├── meeting_id (external meeting ID — Zoom or Daily.co)
+├── password
+├── join_url (host URL)
+├── participant_join_url (student URL)
+├── oauth_service_provider_id → oauth_service_providers
+└── lesson_id → lessons
+```
+
+`Meeting::createOrUpdateMeeting()` — upsert logic that creates or updates meeting details. Used by both Zoom and Daily.co integrations.
+
+Meeting details are included in `LessonBooked` confirmation emails with direct join links for both tutor and student.

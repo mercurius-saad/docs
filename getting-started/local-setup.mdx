@@ -1,0 +1,130 @@
+---
+title: "Local Setup"
+description: "Get the TutorBloc API running on your machine"
+---
+
+## Prerequisites
+
+- Docker & Docker Compose
+- PHP 7.2+ (for running Composer/Artisan outside Docker)
+- Composer
+- Node.js + npm (for email template asset compilation)
+
+## Docker setup (recommended)
+
+<Steps>
+
+<Step title="Get the environment file">
+The API requires a `.env` file in the project root. This file is not committed to the repo.
+
+**Options:**
+- Ask a team member for the current `.env`
+- Download from S3: `s3://tutorbloc-app/env-configurations/staging/.env`
+- The parent `tutorbloc/` directory may already have a `.env` you can reference
+
+<Warning>
+The `.env` contains secrets (Stripe keys, API tokens, database credentials). Never commit it.
+</Warning>
+</Step>
+
+<Step title="Install PHP dependencies">
+```bash
+composer install
+```
+</Step>
+
+<Step title="Start Docker services">
+```bash
+docker-compose up -d
+```
+
+This starts 6 services:
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| `app` | 9000 | PHP 7.2-FPM application server |
+| `webserver` | 80, 443 | Nginx reverse proxy |
+| `mysql-db` | 3306 | Primary MySQL 5.7 database |
+| `mysql-db-test` | 3310 | Test MySQL 5.7 database |
+| `redis` | 6379 | Cache, sessions, queue |
+| `blackbox` | 3000 | Distance calculation microservice |
+
+**Default database credentials:**
+- Primary: `admin` / `secret` (database: `tutorbloc_db`)
+- Test: `tester` / `tester_secret` (database: `tutorbloc_db_test`)
+</Step>
+
+<Step title="Run database migrations">
+```bash
+docker-compose exec app php artisan migrate --force
+```
+</Step>
+
+<Step title="Seed initial data">
+```bash
+docker-compose exec app php artisan db:seed --class=InitialDatabaseSeeder
+```
+
+This seeds: countries, currencies, roles, subjects, subject levels, exam boards, languages, name titles, payment gateways, and verification gateways.
+
+Individual seeders available in `database/seeds/`:
+- `InitialCountryTableSeeder`
+- `InitialCurrencyTableSeeder`
+- `InitialRoleTableSeeder`
+- `InitialSubjectTableSeeder`
+- `InitialSubjectLevelTableSeeder`
+- `InitialExamBoardTableSeeder`
+- `InitialLanguageTableSeeder`
+- `InitialNameTitleTableSeeder`
+- `InitialPaymentGatewayTableSeeder`
+- `InitialVerificationGatewayTableSeeder`
+</Step>
+
+<Step title="Compile frontend assets (optional)">
+```bash
+npm install
+npm run dev
+```
+
+Only needed if you're working on email templates. Compiles JS and SASS via Laravel Mix.
+</Step>
+
+</Steps>
+
+## Alternative: Laravel Homestead
+
+The repo includes `Homestead.yaml` and `Vagrantfile` for Vagrant-based local development.
+
+<Warning>
+The Homestead config has a hardcoded path (`/Users/jmendoza/Sites/tutorbloc-api`). You'll need to update this to your local path in `Homestead.yaml`.
+</Warning>
+
+```bash
+# Update Homestead.yaml folder mapping first, then:
+vagrant up
+vagrant ssh
+cd code
+php artisan migrate
+php artisan db:seed --class=InitialDatabaseSeeder
+```
+
+Homestead maps three sites:
+- `homestead.test`
+- `api.homestead.test`
+- `staging.api.homestead.test`
+
+## Useful aliases
+
+The `aliases` file in the project root defines shell shortcuts:
+
+| Alias | Command |
+|-------|---------|
+| `art` | `php artisan` |
+| `phpunit` | `vendor/bin/phpunit` |
+| `serve` | `php artisan serve` |
+| `dbexport` | Database backup |
+| `dbimport` | Database restore |
+
+## Verifying setup
+
+Once running, hit `http://localhost/api/countries` — you should get a JSON response with seeded country data (no auth required).

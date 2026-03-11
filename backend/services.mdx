@@ -1,0 +1,121 @@
+---
+title: "Services & Transformers"
+description: "Business logic layer and API response formatting"
+---
+
+## Service layer
+
+Services live in `app/Models/Services/` and contain the core business logic. Controllers delegate to services — models handle persistence and relationships.
+
+### Core services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **RegistrationService** | `Services/RegistrationService.php` | Complete user registration flow |
+| **SessionService** | `Services/SessionService.php` | Login/logout, token management |
+| **UsernameService** | `Services/UsernameService.php` | Username validation (5-20 chars, alpha start, alphanumeric) and uniqueness |
+| **SubscriptionService** | `Services/SubscriptionService.php` | Stripe subscription lifecycle, billing portal URLs |
+| **CouponService** | `Services/CouponService.php` | Coupon lookup by UID |
+| **FileService** | `Services/FileService.php` | File storage and retrieval |
+| **NoteService** | `Services/NoteService.php` | Lesson note creation with push notifications and emails |
+| **AddressService** | `Services/AddressService.php` | Address storage, postcode search via Google Maps |
+| **CalendarService** | `Services/CalendarService.php` | Google Calendar sync (list, events, update) |
+
+### Payment services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **StripeService** | `Services/Payments/StripeService.php` | Full Stripe integration (see [Booking & Payments](/workflows/booking-and-payments)) |
+| **StripePaymentStatus** | `Services/Payments/StripePaymentStatus.php` | Payment status value object with 3D Secure checks |
+| **PaymentServiceInterface** | `Services/Payments/PaymentServiceInterface.php` | Contract for payment providers |
+
+### Search & availability services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **SearchService** | `Services/v1/SearchService.php` | Tutor search with complex filtering (see [Search](/workflows/search)) |
+| **AvailabilityService** | `Services/v1/AvailabilityService.php` | Available time slot calculation with calendar/travel conflicts |
+
+### Review services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **TutorReviewService** | `Services/TutorReviewService.php` | Review creation, deletion, cached summaries, push notifications |
+| **LearnerReviewService** | `Services/LearnerReviewService.php` | Learner review submission with internal email notification |
+
+### Google services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **GoogleMapsAPI** | `Services/Google/GoogleMapsAPI.php` | Geocoding and reverse geocoding via Google Maps |
+| **GoogleCalendarEvent** | `Services/Google/GoogleCalendarEvent.php` | Calendar event value object |
+| **GoogleGeoCodeResult** | `Services/Google/GoogleGeoCodeResult.php` | Geocode result value object |
+| **GoogleReverseGeoCodeResult** | `Services/Google/GoogleReverseGeoCodeResult.php` | Reverse geocode result with address parsing |
+
+### Integration services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **TwilioService** | `Services/Integrations/TwilioService.php` | SMS verification via Twilio Verify V2 |
+| **DailyMeetingService** | `Services/DailyMeetingService.php` | Daily.co video room management |
+| **PostcodeService** | `Services/PostcodeService/PostcodeService.php` | UK postcode lookup via postcodes.io (cached 3 months) |
+
+### Versioning helpers
+
+| Helper | File | Purpose |
+|--------|------|---------|
+| **ServiceVersion** | `Models/Helpers/ServiceVersion.php` | Resolves service class by API version with fallback |
+| **TransformerVersion** | `Models/Helpers/TransformerVersion.php` | Resolves transformer class by API version with fallback |
+| **ServicePaginatorResponse** | `Models/Helpers/ServicePaginatorResponse.php` | Wraps paginated results with metadata |
+
+### Caching strategy
+
+| Data | Cache duration | Location |
+|------|---------------|----------|
+| Tutor review summaries | Until end of day | `TutorReviewService` |
+| Postcode coordinates | 3 months | `PostcodeService` |
+| BlackBox distance results | 2 days | `BlackBox/Models/Distance` |
+
+---
+
+## Transformers
+
+Transformers live in `app/Models/Transformers/v1/` and format model data into API response shapes. They're called from controllers after services return data.
+
+### Available transformers
+
+| Transformer | What it formats |
+|------------|----------------|
+| **BookingTransformer** | Complete booking with lesson, tutor, student, meeting, notes, receipt, activities, calendar events |
+| **TutorTransformer** | Full tutor profile (account, personal, education, verification, DBS, qualifications, addresses, subjects, availability, country) |
+| **TutorProfileTransformer** | Public-facing tutor profile (basic info, bio, rating, social links, location) |
+| **SearchTransformer** | Search results (tutor info, distance, experience, teaching info, pricing) |
+| **AvailableTimesTransformer** | Available time slots with pricing and lesson type options |
+| **CardTransformer** | Payment card (brand, last 4, expiry, default flag) |
+| **BankAccountTransformer** | Bank account details |
+| **AddressTransformer** | Address with country/currency, postcode search results |
+| **CouponTransformer** | Coupon details |
+| **FileTransformer** | File (id, name, url) |
+| **NoteTransformer** | Lesson note with attached file |
+| **LessonLocationTransformer** | Lesson locations with enabled/disabled status |
+| **LessonPriceBreakdownTransformer** | Pricing breakdown (lesson price, service fee, total, discount) |
+| **SocialLinksTransformer** | Social platform links (connected + available) |
+| **TutorReviewTransformer** | Review summary with criteria ratings and paginated comments |
+
+### BookingTransformer detail
+
+The `BookingTransformer` is the most complex — it assembles data from across the system:
+
+```
+BookingTransformer::transform($booking)
+├── Lesson info (state, type, times, address, subject, level, exam board)
+├── Tutor info (profile, rating, hours taught, location, visibility)
+├── Student/contact info (email, mobile)
+├── Meeting info (join URLs)
+├── Notes (student note, tutor note)
+├── Receipt (pricing breakdown with commission)
+├── Activities timeline
+└── Calendar events
+```
+
+It uses many private helper methods: `getLessonInfo()`, `getReceipt()`, `getAddress()`, `getTutorInfo()`, `getSubjectInfo()`, `getStudentContactInfo()`, `getMeeting()`, etc.

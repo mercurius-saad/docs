@@ -1,0 +1,180 @@
+---
+title: "Environment Variables"
+description: "Complete list of required env vars and what they configure"
+---
+
+The API requires **115 environment variables**. These are validated at test time by `tests/Unit/EnvTest.php` — if any are missing, the env test fails.
+
+<Info>
+In production and staging, the `.env` file is stored in S3 at `s3://tutorbloc-app/env-configurations/{environment}/.env` and loaded into ECS containers at startup.
+</Info>
+
+## Application
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `APP_NAME` | Application name | `Laravel` |
+| `APP_ENV` | Environment (local, staging, production) | `production` |
+| `APP_KEY` | Encryption key (AES-256-CBC) | — |
+| `APP_DEBUG` | Enable debug mode | `false` |
+| `APP_URL` | Base API URL | `http://localhost` |
+| `APP_BASE_DOMAIN` | Base domain for routing | — |
+| `APP_SUB_DOMAIN` | Subdomain for routing | — |
+| `WEBSITE_URL` | Frontend website URL (used in emails, redirects) | — |
+| `SERVER_ENV` | Server environment identifier | — |
+| `BLACK_BOX_SERVICE_URL` | BlackBox distance microservice URL | — |
+| `TRUSTED_ORIGINS` | Comma-separated allowed CORS origins (exact match) | — |
+| `WHITELISTED_ORIGINS` | Comma-separated CORS origins (substring match) | — |
+| `BUSINESS_PROFILE_MCC_CODE` | Stripe merchant category code | — |
+
+## Database
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `DB_CONNECTION` | Database driver | `mysql` |
+| `DB_HOST` | MySQL host | `127.0.0.1` |
+| `DB_PORT` | MySQL port | `3306` |
+| `DB_DATABASE` | Database name | `homestead` |
+| `DB_USERNAME` | Database user | `homestead` |
+| `DB_PASSWORD` | Database password | `secret` |
+
+### Test database
+
+| Variable | Purpose |
+|----------|---------|
+| `DB_TEST_HOST` | Test MySQL host |
+| `DB_TEST_PORT` | Test MySQL port |
+| `DB_TEST_DATABASE` | Test database name |
+| `DB_TEST_USERNAME` | Test database user |
+| `DB_TEST_PASSWORD` | Test database password |
+
+## Redis
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `REDIS_HOST` | Redis host | `127.0.0.1` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `REDIS_PASSWORD` | Redis password | `null` |
+
+## Infrastructure drivers
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `BROADCAST_DRIVER` | Broadcasting driver | `null` |
+| `CACHE_DRIVER` | Cache driver | `redis` |
+| `SESSION_DRIVER` | Session driver | `file` |
+| `SESSION_LIFETIME` | Session lifetime (minutes) | `120` |
+| `QUEUE_DRIVER` | Queue driver | `sync` |
+| `FILESYSTEM_DRIVER` | Default filesystem | `public` |
+| `LOG_CHANNEL` | Logging channel | `stack` |
+
+## Stripe
+
+| Variable | Purpose |
+|----------|---------|
+| `STRIPE_SECRET` | Stripe secret API key |
+| `STRIPE_SIGNING_SECRET` | Webhook signing secret (payment events) |
+| `STRIPE_SUBSCRIPTION_SIGNING_SECRET` | Webhook signing secret (subscription events) |
+| `STRIPE_VERSION` | Stripe API version |
+
+## Identity verification
+
+### Onfido
+
+| Variable | Purpose |
+|----------|---------|
+| `ONFIDO_API_TOKEN` | Onfido API token |
+| `ONFIDO_WEBHOOK_TOKEN` | Onfido webhook verification token |
+
+### Yoti
+
+| Variable | Purpose |
+|----------|---------|
+| `YOTI_BASE_URL` | Yoti API base URL |
+| `YOTI_SDK_ID` | Yoti SDK identifier |
+| `YOTI_PEM_NAME` | Yoti PEM certificate filename |
+| `YOTI_HEADER_TOKEN` | Yoti API header token |
+
+## Communication
+
+### Zoom
+
+| Variable | Purpose |
+|----------|---------|
+| `ZOOM_CLIENT_SECRET` | Zoom OAuth client secret |
+| `ZOOM_CLIENT_ID` | Zoom OAuth client ID |
+| `ZOOM_REDIRECT_URI` | Zoom OAuth callback URL |
+| `ZOOM_VERIFICATION_TOKEN` | Zoom webhook verification token |
+
+### Google
+
+| Variable | Purpose |
+|----------|---------|
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_REDIRECT_URI` | Google OAuth callback URL |
+| `GOOGLE_MAPS_BASE_URL` | Google Maps API base URL |
+| `GOOGLE_MAPS_API_KEY` | Google Maps API key |
+
+### Twilio
+
+| Variable | Purpose |
+|----------|---------|
+| `TWILIO_ACCOUNT_SID` | Twilio account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token |
+| `TWILIO_VERIFICATION_SID` | Twilio Verify service SID |
+
+### Daily.co
+
+| Variable | Purpose |
+|----------|---------|
+| `DAILY_API_KEY` | Daily.co API key for video meetings |
+
+## Email
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MAIL_DRIVER` | Mail transport driver | `smtp` |
+| `MAIL_HOST` | SMTP host | `smtp.mailgun.org` |
+| `MAIL_PORT` | SMTP port | `587` |
+| `MAIL_USERNAME` | SMTP username | — |
+| `MAIL_PASSWORD` | SMTP password | — |
+| `MAIL_ENCRYPTION` | SMTP encryption | `tls` |
+| `MAIL_FROM_ADDRESS` | Default sender address | `hello@example.com` |
+| `MAIL_FROM_NAME` | Default sender name | `Example` |
+| `MAIL_TO_INTERNAL_TEAM_ADDRESSES` | Internal team email recipients (BCC on many emails) | — |
+
+## AWS
+
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+| `AWS_DEFAULT_REGION` | AWS region |
+| `AWS_BUCKET` | S3 bucket name |
+
+## Push notifications
+
+### Apple (APNS)
+
+| Variable | Purpose |
+|----------|---------|
+| `APNS_KEY_FILE` | APNS authentication key file path |
+| `APNS_KEY_ID` | APNS key identifier |
+| `APNS_TEAM_ID` | Apple Developer team ID |
+| `APNS_BUNDLE_ID` | iOS app bundle identifier |
+| `APNS_CERTIFICATION_FILE` | APNS certificate file path |
+| `APNS_URL` | APNS endpoint URL |
+
+### Firebase (FCM)
+
+| Variable | Purpose |
+|----------|---------|
+| `FCM_API_ACCESS_KEY` | Firebase Cloud Messaging API key |
+| `FCM_URL` | FCM endpoint URL |
+| `GOOGLE_CONTENT_TYPE` | FCM content type header |
+| `Socket_Time_To_Live` | FCM message TTL |
+
+<Note>
+No FCM service class was found in the codebase — the FCM integration may be incomplete or handled via a package not visible in the code. **Confirm with team.**
+</Note>

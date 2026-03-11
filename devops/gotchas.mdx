@@ -1,0 +1,137 @@
+---
+title: "Known Gotchas"
+description: "Non-obvious things, bugs, legacy decisions, and areas that need care"
+---
+
+## Authentication
+
+<AccordionGroup>
+
+<Accordion title="Custom Redis guard — not Passport or Sanctum">
+The API uses a hand-rolled Redis token guard (`app/Services/Redis/RedisGuard.php`). Don't expect standard Laravel auth packages to work. Auth tokens are `MD5(uniqid())` stored in Redis with ~1 year expiry. Sessions are also stored in the `sessions` database table.
+</Accordion>
+
+<Accordion title="web.api middleware decrypts user IDs from request params">
+The `WebAPI` middleware (`app/Http/Middleware/WebAPI.php`) accepts an encrypted `secret` parameter that it decrypts to a user ID and uses to authenticate the request. This is how email action links (booking management, reschedule accept/decline) work without requiring login.
+</Accordion>
+
+<Accordion title="RedisGuardTrait::guest() returns wrong value">
+`guest()` returns `$this->check()` instead of `!$this->check()`. This appears to be a bug — but may be intentionally ignored since the method isn't called anywhere critical. **Confirm with team.**
+</Accordion>
+
+</AccordionGroup>
+
+## Code bugs
+
+<AccordionGroup>
+
+<Accordion title="config('env') typo in SendNewAccountCreatedEmail">
+**File:** `app/Listeners/SendNewAccountCreatedEmail.php`
+
+Checks `config('env')` instead of `config('app.env')`. This likely returns `null`, meaning the production-only check may silently fail and the email may never send.
+</Accordion>
+
+<Accordion title="Undefined $modelId in TutorController">
+**File:** `app/Http/Controllers/TutorController.php` (around line 33)
+
+References an undefined `$modelId` variable. May cause errors on the tutor show endpoint.
+</Accordion>
+
+<Accordion title="Production buildspec downloads staging certificates">
+**File:** `buildspec-production.yml`
+
+Downloads `APNS-Key.p8` and `AAACertificateServices.crt` from the **staging** config path, not production. May be intentional (shared certs) or a copy-paste bug.
+</Accordion>
+
+</AccordionGroup>
+
+## Business logic gotchas
+
+<AccordionGroup>
+
+<Accordion title="Tutor addresses: adding new deletes existing">
+In `app/Models/v1/Address.php`, when a tutor adds a new address, the existing address is **deleted** (not soft-deleted). Tutors are limited to one address. Students can have multiple.
+</Accordion>
+
+<Accordion title="Only one commission can be active at a time">
+`Commission::addNewModel()` disables ALL existing commissions before inserting a new one. If you need to change commission rates, add a new model — don't edit existing ones.
+</Accordion>
+
+<Accordion title="PaymentReceipt auto-calculates fees on every retrieval">
+The `PaymentReceipt` model's `boot()` method runs `CommissionService` calculations on **every model load**. This can cause performance issues on bulk queries (N+1 problem). Be careful with `PaymentReceipt::all()` or eager loading receipts on large collections.
+</Accordion>
+
+<Accordion title="72-hour reschedule rule is in the model, not middleware">
+The 72-hour advance notice for rescheduling is enforced in `Lesson::reschedule()`, not in middleware or a form request. If you bypass the model method, the rule won't apply.
+</Accordion>
+
+<Accordion title="Tutoring experience stored in months">
+`profiles.tutoring_experience` is stored in **months**, not years. `Profile::getTutoringExperience()` formats it as "X years Y months" for display. Don't store years directly.
+</Accordion>
+
+<Accordion title="TutorScope is global — always filters to role_id=1">
+Every query through `Tutor::` automatically includes `WHERE role_id = 1`. If you need all users, query `User::` instead. This is via the `HasParent` trait from `calebporzio/parental`.
+</Accordion>
+
+<Accordion title="File UUIDs — not auto-increment IDs">
+The `files` table uses **UUID string primary keys**, not auto-increment integers. When creating files, generate the UUID yourself.
+</Accordion>
+
+</AccordionGroup>
+
+## Deployment gotchas
+
+<AccordionGroup>
+
+<Accordion title="Migrations run on every container start">
+The Dockerfile entrypoint runs `php artisan migrate --force` before starting PHP-FPM. If a migration fails, the container fails to start. Test migrations thoroughly before deploying.
+</Accordion>
+
+<Accordion title="Production builds skip all tests">
+Only staging runs PHPUnit. Production builds assume staging passed. There's no gate between staging passing and production deploying.
+</Accordion>
+
+<Accordion title="Queue driver defaults to sync">
+`QUEUE_DRIVER=sync` means all jobs run inline during HTTP requests. In production, this should be `redis` with a queue worker process. If you see slow API responses, check if the queue driver is set correctly.
+</Accordion>
+
+</AccordionGroup>
+
+## Legacy code
+
+<AccordionGroup>
+
+<Accordion title="Two API versions coexist">
+`/api/v1/*` (legacy controllers in `Http/Controllers/v1/`) and `/api/*` (current, header-versioned). Many v1 controllers have TODO comments for missing validators. Both are actively used.
+</Accordion>
+
+<Accordion title="Most form request validators are empty stubs">
+Files in `app/Http/Requests/v1/RequestValidators/` have empty `rules()` methods. Validation is done inline in controllers with `$request->validate()`.
+</Accordion>
+
+<Accordion title="CheckVerificationStatusOfPendingApplicants is disabled">
+The job in `app/Jobs/CheckVerificationStatusOfPendingApplicants.php` has all its code commented out. Status updates come via webhooks instead.
+</Accordion>
+
+<Accordion title="Sleep statements in jobs">
+`SendClaimUsernameEmail` has a 2-second sleep between emails. `ValidateZoomTokens` has a 1-second sleep in its loop. These are for rate limiting but could cause issues with queue timeouts.
+</Accordion>
+
+<Accordion title="Some emails have hardcoded recipients">
+Several mail classes send directly to `hello@tutorbloc.com` rather than using a config value. If this email changes, multiple files need updating.
+</Accordion>
+
+</AccordionGroup>
+
+## Caching behavior
+
+| Data | Cache duration | Impact of stale cache |
+|------|---------------|----------------------|
+| Tutor review summaries | Until end of day | Reviews won't show until cache expires |
+| Postcode coordinates | 3 months | Incorrect coordinates until cache expires |
+| BlackBox distance results | 2 days | Stale travel time estimates |
+
+To clear all cache:
+```bash
+php artisan cache:clear
+```

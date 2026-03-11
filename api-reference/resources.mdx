@@ -1,0 +1,115 @@
+---
+title: "Resource Endpoints"
+description: "File serving, profile images, videos, and documents"
+---
+
+## Profile resources (public)
+
+These endpoints redirect to temporary S3 signed URLs:
+
+### Profile image
+
+```
+GET /api/resources/profile-image/{id}
+```
+
+**Auth:** None — redirects to 5-minute signed S3 URL.
+
+---
+
+### Profile video
+
+```
+GET /api/resources/profile-video/{id}
+```
+
+**Auth:** None — redirects to 5-day signed S3 URL.
+
+<Note>
+Videos get a much longer signed URL expiry (5 days vs 5 minutes) due to streaming requirements.
+</Note>
+
+---
+
+## Protected resources
+
+### DBS document image
+
+```
+GET /api/resources/dbs-image/{id}
+```
+
+**Auth:** `auth:api` — redirects to 5-minute signed S3 URL.
+
+---
+
+### Qualification document image
+
+```
+GET /api/resources/qualification-image/{id}
+```
+
+**Auth:** `auth:api` — redirects to 5-minute signed S3 URL.
+
+---
+
+## Mobile app assets
+
+```
+GET /api/resources/mobile/...
+```
+
+**Auth:** None — serves static mobile app assets.
+
+---
+
+## File management (v1)
+
+```
+GET    /api/v1/files
+POST   /api/v1/files
+GET    /api/v1/files/{id}
+PUT    /api/v1/files/{id}
+DELETE /api/v1/files/{id}
+```
+
+**Auth:** Mixed (some public, some require `auth:api`)
+
+Files use **UUID primary keys** (not auto-increment integers). Stored in S3 via `FileService`.
+
+### Current API files
+
+```
+GET    /api/files
+POST   /api/files
+GET    /api/files/{id}
+PUT    /api/files/{id}
+DELETE /api/files/{id}
+```
+
+**Auth:** Mixed
+
+---
+
+## Service notifications
+
+```
+GET /api/service-notifications
+```
+
+**Auth:** None (public)
+
+Returns active service notifications (maintenance notices, etc.).
+
+---
+
+## Address search
+
+```
+GET /api/addresses/search
+GET /api/v1/addresses/search-postcode
+```
+
+**Auth:** None (public)
+
+Searches UK postcodes via Google Maps API and returns matching addresses. Uses `AddressService::searchPostCode()` → `GoogleMapsAPI::getGeoCodeResults()` + `getReverseGeoCodeResults()`.

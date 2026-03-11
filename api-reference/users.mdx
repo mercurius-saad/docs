@@ -1,0 +1,215 @@
+---
+title: "User Endpoints"
+description: "User management, profiles, and personal details"
+---
+
+## Current API
+
+### Validate email
+
+```
+GET /api/users/{email}/validate
+```
+
+**Auth:** None — checks if email is already registered.
+
+---
+
+### Get user by username
+
+```
+GET /api/users/{username}
+```
+
+**Auth:** None — returns public user/tutor profile.
+
+---
+
+### Claim username
+
+```
+GET /api/users/username/claim/{id}
+```
+
+**Auth:** `signed` middleware — validates signed URL (sent via email).
+
+---
+
+### Update user
+
+```
+PUT /api/users/{id}
+```
+
+**Auth:** None (public endpoint)
+
+<Warning>
+This endpoint has no auth middleware in the current routes. Verify this is intentional — it may rely on the request body validation or internal checks. **Confirm with team.**
+</Warning>
+
+---
+
+## Legacy v1 API
+
+### Get user
+
+```
+GET /api/v1/users/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Update user
+
+```
+PUT /api/v1/users/{id}
+```
+
+**Auth:** `auth:api`
+
+**Policy:** `UserPolicy::update()` — user must be internal or updating themselves.
+
+---
+
+### Profile image
+
+```
+POST /api/v1/users/{id}/profile/image
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Profile video
+
+```
+POST /api/v1/users/{id}/profile/video
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Personal details
+
+```
+GET /api/v1/personal-details
+PUT /api/v1/personal-details/{id}
+```
+
+**Auth:** `auth:api`
+
+Fires `PersonalDetailUpdated` event → syncs DOB to Stripe for tutors.
+
+---
+
+### Education
+
+```
+GET    /api/v1/education
+POST   /api/v1/education
+PUT    /api/v1/education/{id}
+DELETE /api/v1/education/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Professions
+
+```
+GET    /api/v1/professions
+POST   /api/v1/professions
+PUT    /api/v1/professions/{id}
+DELETE /api/v1/professions/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Profiles
+
+```
+GET /api/v1/profiles
+PUT /api/v1/profiles/{id}
+```
+
+**Auth:** `auth:api`
+
+Bio (max 500 chars), teacher reference number, tutoring experience.
+
+---
+
+### Children
+
+```
+GET    /api/v1/children
+POST   /api/v1/children
+PUT    /api/v1/children/{id}
+DELETE /api/v1/children/{id}
+```
+
+**Auth:** `auth:api`
+
+Parents manage child profiles. Children can be linked to lessons via `lesson_child` pivot.
+
+---
+
+### Languages
+
+```
+GET /api/v1/languages
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Addresses
+
+```
+GET    /api/v1/addresses
+POST   /api/v1/addresses
+PUT    /api/v1/addresses/{id}
+DELETE /api/v1/addresses/{id}
+```
+
+**Auth:** `auth:api`
+
+Fires `AddressUpdated` event → syncs to Stripe.
+
+<Warning>
+Tutors are limited to **one address** — adding a new address deletes the existing one.
+</Warning>
+
+---
+
+### Mobile numbers
+
+```
+GET    /api/v1/mobile-numbers
+POST   /api/v1/mobile-numbers
+PUT    /api/v1/mobile-numbers/{id}
+DELETE /api/v1/mobile-numbers/{id}
+```
+
+**Auth:** `auth:api`
+
+Fires `MobileNumberUpdated` event → syncs to Stripe.
+
+---
+
+### User devices
+
+```
+PUT /api/v1/user-devices/{id}
+```
+
+**Auth:** `auth:api`
+
+Updates push notification device tokens.

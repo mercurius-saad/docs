@@ -1,0 +1,148 @@
+---
+title: "AWS"
+description: "S3 storage, ECS deployment, and CloudWatch logging"
+---
+
+## Overview
+
+The platform runs on AWS with the following services:
+
+| Service | Purpose |
+|---------|---------|
+| **ECS** (EC2 launch type) | Container orchestration for app, nginx, blackbox |
+| **ECR** | Docker image registry |
+| **S3** | File storage (profile images, videos, documents, env configs) |
+| **CloudWatch** | Container logging |
+| **CodeBuild** | CI/CD build pipeline |
+
+## AWS account details
+
+```
+Account ID: 170904582664
+Region: eu-west-2 (London)
+ECR Registry: 170904582664.dkr.ecr.eu-west-2.amazonaws.com
+```
+
+## S3
+
+### Configuration
+
+```
+AWS_ACCESS_KEY_ID       — AWS access key
+AWS_SECRET_ACCESS_KEY   — AWS secret key
+AWS_DEFAULT_REGION      — AWS region
+AWS_BUCKET              — S3 bucket name
+```
+
+Config: `config/filesystems.php` under `s3` disk.
+
+### Storage layout
+
+The S3 bucket `tutorbloc-app` stores:
+
+| Path | Content |
+|------|---------|
+| Profile images | Tutor/student profile pictures |
+| Profile videos | Tutor intro videos |
+| DBS documents | DBS certificate images |
+| Qualification documents | Education qualification images |
+| Lesson note files | Files attached to lesson notes |
+| `env-configurations/staging/.env` | Staging environment config |
+| `env-configurations/production/.env` | Production environment config |
+| APNS key files | Apple push notification certificates |
+
+### File access patterns
+
+Files are served via **temporary signed S3 URLs** — not direct public URLs:
+
+```php
+// Profile images/videos: redirect to signed URL
+GET /api/resources/profile-image/{id}    → 5-minute signed URL
+GET /api/resources/profile-video/{id}    → 5-day signed URL
+
+// Protected documents: requires auth
+GET /api/resources/dbs-image/{id}        → 5-minute signed URL (auth:api)
+GET /api/resources/qualification-image/{id} → 5-minute signed URL (auth:api)
+```
+
+### File model
+
+**File:** `app/Models/File.php`
+
+Uses **UUID primary keys** (non-incrementing strings), not auto-increment integers.
+
+```
+files
+├── id (UUID string)
+├── name
+├── url
+└── Polymorphic attachments via fileables table
+```
+
+## ECS
+
+### Task definitions
+
+Two environments, each running 3 containers:
+
+**Production** (`production-taskdef.json`):
+
+| Container | Image | Port | Memory |
+|-----------|-------|------|--------|
+| `app` | `tutorbloc.app:production` | 9000 | 128 MB |
+| `nginx` | `tutorbloc.app.nginx:production` | 80 | 128 MB |
+| `blackbox` | `tutorbloc.blackbox:production` | 3000 | 128 MB |
+
+**Staging** (`staging-taskdef.json`):
+
+| Container | Image | Port | Memory |
+|-----------|-------|------|--------|
+| `app` | `tutorbloc.app:staging` | 9000 | 128 MB |
+| `nginx` | `tutorbloc.app.nginx:staging` | 80, 443 | 128 MB |
+| `blackbox` | `tutorbloc.blackbox:staging` | 3000 | 128 MB |
+
+### Environment file loading
+
+ECS loads `.env` from S3 at container startup:
+
+```json
+"environmentFiles": [{
+  "value": "arn:aws:s3:::tutorbloc-app/env-configurations/production/.env",
+  "type": "s3"
+}]
+```
+
+### Container startup
+
+The `app` container (from Dockerfile) runs on startup:
+1. `php artisan migrate --force` — run pending migrations
+2. `crond` — start cron daemon for scheduled jobs
+3. `php-fpm` — start PHP-FPM process
+
+<Warning>
+If a migration fails, the container fails to start. This can cause deployment issues if a migration has errors.
+</Warning>
+
+## CloudWatch
+
+Logging configured per container:
+
+```
+Log group: /ecs/production-app-ec2  (or /ecs/staging-app-ec2)
+Region: eu-west-2
+Stream prefix: ecs
+```
+
+All three containers (app, nginx, blackbox) log to the same CloudWatch group.
+
+## ECR images
+
+Three images are pushed during CI/CD:
+
+| Image | Tag pattern |
+|-------|-------------|
+| `tutorbloc.app` | `{env}`, `{env}-{build_number}` |
+| `tutorbloc.app.nginx` | `{env}`, `{env}-{build_number}` |
+| `redis` | `{env}` |
+
+The blackbox image is pulled separately (not built in CI/CD).

@@ -11,58 +11,135 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Overview",
         "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "index",
+              "tech-stack"
+            ]
+          },
           {
             "group": "Getting started",
             "pages": [
-              "index",
-              "quickstart",
+              "getting-started/local-setup",
+              "getting-started/environment-variables",
+              "getting-started/where-to-start",
               "development"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
           {
-            "group": "Customization",
+            "group": "Codebase",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "architecture/overview",
+              "architecture/authentication",
+              "architecture/database",
+              "architecture/models"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Key workflows",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "workflows/registration",
+              "workflows/search",
+              "workflows/booking-and-payments",
+              "workflows/lesson-lifecycle"
             ]
           },
+          {
+            "group": "Backend systems",
+            "pages": [
+              "backend/services",
+              "backend/jobs-and-scheduling",
+              "backend/events-and-notifications"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "Third-party services",
+            "pages": [
+              "integrations/stripe",
+              "integrations/twilio",
+              "integrations/zoom-and-daily",
+              "integrations/google",
+              "integrations/identity-verification",
+              "integrations/aws"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction",
+              "api-reference/middleware"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/auth",
+              "api-reference/users",
+              "api-reference/tutors",
+              "api-reference/bookings",
+              "api-reference/lessons",
+              "api-reference/payments",
+              "api-reference/search",
+              "api-reference/availability",
+              "api-reference/subscriptions",
+              "api-reference/resources",
+              "api-reference/webhooks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "DevOps",
+        "groups": [
+          {
+            "group": "Testing",
+            "pages": [
+              "devops/testing"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "devops/docker",
+              "devops/ci-cd",
+              "devops/aws-infrastructure"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "devops/gotchas"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "AI Tools",
+        "groups": [
           {
             "group": "AI tools",
             "pages": [
               "ai-tools/cursor",
               "ai-tools/claude-code",
               "ai-tools/windsurf"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API reference",
-        "groups": [
-          {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
             ]
           }
         ]
@@ -88,15 +165,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {

@@ -1,0 +1,137 @@
+---
+title: "Authentication"
+description: "Custom Redis token guard and hybrid auth middleware"
+---
+
+## Overview
+
+The API uses a **custom Redis-based token guard** — not Laravel Passport, Sanctum, or JWT. This is defined in `app/Services/Redis/`.
+
+<Warning>
+This is a non-standard auth implementation. Don't expect standard Laravel auth patterns to work out of the box.
+</Warning>
+
+## How it works
+
+### Token creation
+
+When a user logs in (`SessionService::createSession()`):
+
+1. Credentials validated via `Auth::guard()->retrieveByCredentials()`
+2. Token generated: `md5(uniqid($userId, true))`
+3. Token stored in Redis with ~1 year expiry (31,557,600 seconds)
+4. Session record created in the `sessions` database table
+5. Token returned to client
+
+### Token validation
+
+On every authenticated request:
+
+1. `RedisGuard::user()` extracts token from request
+2. Looks up user ID in Redis by token
+3. Loads `User` model from database
+4. Sets as current authenticated user
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `app/Services/Redis/RedisGuard.php` | Guard implementation — token creation, lookup, deletion |
+| `app/Services/Redis/RedisGuardTrait.php` | Implements Laravel Guard interface methods |
+| `app/Services/Redis/RedisClient.php` | Low-level Redis operations (get, set, expire, delete) |
+| `app/Models/Services/SessionService.php` | Login/logout business logic |
+| `app/Models/Session.php` | Session database model |
+
+### Guard registration
+
+In `app/Providers/AuthServiceProvider.php`:
+
+```php
+// Custom guard registered as 'redis.token'
+Auth::extend('redis.token', function ($app, $name, array $config) {
+    return new RedisGuard(Auth::createUserProvider($config['provider']));
+});
+```
+
+In `config/auth.php`:
+
+```php
+'guards' => [
+    'api' => [
+        'driver' => 'redis.token',  // Custom driver
+        'provider' => 'users',
+    ],
+],
+```
+
+## Middleware layers
+
+The API uses three custom auth middleware:
+
+### `auth:api` — Standard token auth
+
+Standard Laravel `auth` middleware using the custom `redis.token` guard. Requires a valid token. Returns 401 if missing/invalid.
+
+Used on most authenticated endpoints:
+```
+GET /api/bookings
+POST /api/payments/pay
+GET /api/coupons
+```
+
+### `web.api` — Hybrid auth
+
+**`app/Http/Middleware/WebAPI.php`** — the most complex auth layer. Tries three methods in order:
+
+<Steps>
+<Step title="Existing Auth::user()">
+If a user is already authenticated (e.g., via session), use that.
+</Step>
+<Step title="Valid signed URL">
+If the request has a valid Laravel signed URL signature, authenticate via that.
+</Step>
+<Step title="Encrypted secret">
+If a `secret` parameter exists in the request, **decrypt it** and treat the decrypted value as a user ID. Sets `Auth::user()` to that user.
+</Step>
+</Steps>
+
+Returns 401 if none of the three methods succeed.
+
+<Warning>
+The encrypted secret mechanism means that anyone with a valid encrypted user ID string can authenticate as that user. These secrets are generated server-side and included in emails (booking management links, lesson actions).
+</Warning>
+
+Used on sensitive management endpoints:
+```
+GET/PUT /api/bookings/{id}
+PUT /api/bookings/{id}/cancel
+GET /api/lessons/{id}
+PUT /api/lessons/{id}/edit
+```
+
+### `internal` — Admin-only
+
+**`app/Http/Middleware/API/Internal.php`** — checks if the authenticated user has `role_id = 200` (Internal role). Returns 403 if not.
+
+Used on admin operations:
+```
+GET /api/tutors/{id}          (with internal middleware)
+POST /api/bank-accounts/link
+```
+
+## Middleware stack
+
+Global middleware applied to all requests (from `app/Http/Kernel.php`):
+
+1. `CheckForMaintenanceMode`
+2. `ValidatePostSize`
+3. `TrimStrings` (excludes password fields)
+4. `ConvertEmptyStringsToNull`
+5. `TrustProxies` (trusts all proxies, X-Forwarded-All)
+6. `SecureHeaders` — removes X-Powered-By, Server headers; adds HSTS, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection
+7. `TrustedOrigins` — CORS validation against `app.trusted_origins` (exact) and `app.whitelisted_origins` (substring)
+
+API-specific middleware group:
+1. `throttle:300,1` (300 requests per minute)
+2. `bindings` (route model binding)
+3. `ETag` (HTTP caching via ETags)

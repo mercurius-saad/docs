@@ -1,0 +1,145 @@
+---
+title: "AWS Infrastructure"
+description: "ECS, ECR, S3, and CloudWatch configuration"
+---
+
+## Account details
+
+```
+AWS Account ID: 170904582664
+Region: eu-west-2 (London)
+```
+
+## Services used
+
+| Service | Purpose |
+|---------|---------|
+| **ECS** (EC2 launch type) | Runs app, nginx, and blackbox containers |
+| **ECR** | Docker image registry |
+| **S3** | File storage + environment configs |
+| **CloudWatch** | Container logging |
+| **CodeBuild** | CI/CD build pipeline |
+| **IAM** | Task execution roles |
+
+## ECS
+
+### Clusters
+
+Two ECS services:
+- `staging-app-ec2` — staging environment
+- `production-app-ec2` — production environment
+
+### Task configuration
+
+Each task runs **3 containers** in bridge networking mode:
+
+| Container | Port | Memory | Links |
+|-----------|------|--------|-------|
+| `app` (PHP-FPM) | 9000, 2525 | 128 MB | blackbox |
+| `nginx` | 80 (prod) / 80+443 (staging) | 128 MB | app |
+| `blackbox` | 3000 | 128 MB | — |
+
+### IAM roles
+
+```
+Task Role: arn:aws:iam::170904582664:role/ecsTaskExecutionRole
+Execution Role: arn:aws:iam::170904582664:role/ecsTaskExecutionRole
+```
+
+Required capabilities:
+- ECR authentication (pulling images)
+- CloudWatch logging (`awslogs` driver)
+- S3 environment file loading
+- Task IAM role assumption
+
+## ECR
+
+```
+Registry: 170904582664.dkr.ecr.eu-west-2.amazonaws.com
+```
+
+### Images
+
+| Repository | Description |
+|-----------|-------------|
+| `tutorbloc.app` | PHP 7.2-FPM application |
+| `tutorbloc.app.nginx` | Nginx reverse proxy |
+| `tutorbloc.blackbox` | Distance calculation microservice |
+| `redis` | Redis cache (mirrored from Docker Hub) |
+
+### Tagging strategy
+
+```
+{image}:{environment}                → Latest for environment
+{image}:{environment}-{build_number} → Specific build
+```
+
+Examples:
+- `tutorbloc.app:production`
+- `tutorbloc.app:staging-42`
+
+## S3
+
+### Bucket: `tutorbloc-app`
+
+| Path | Content |
+|------|---------|
+| `env-configurations/staging/.env` | Staging environment variables |
+| `env-configurations/production/.env` | Production environment variables |
+| `env-configurations/staging/APNS-Key.p8` | Apple push notification key |
+| `env-configurations/staging/AAACertificateServices.crt` | SSL certificate |
+| User uploads | Profile images, videos, documents |
+
+### Environment file loading
+
+ECS tasks load `.env` from S3 at startup:
+
+```json
+{
+  "environmentFiles": [{
+    "value": "arn:aws:s3:::tutorbloc-app/env-configurations/production/.env",
+    "type": "s3"
+  }]
+}
+```
+
+## CloudWatch
+
+### Log groups
+
+| Group | Source |
+|-------|-------|
+| `/ecs/production-app-ec2` | All production containers |
+| `/ecs/staging-app-ec2` | All staging containers |
+
+### Log configuration
+
+```json
+{
+  "logDriver": "awslogs",
+  "options": {
+    "awslogs-group": "/ecs/production-app-ec2",
+    "awslogs-region": "eu-west-2",
+    "awslogs-stream-prefix": "ecs"
+  }
+}
+```
+
+Each container (app, nginx, blackbox) has its own log stream within the group.
+
+## Application logging
+
+Laravel logs are configured in `config/logging.php`:
+
+| Channel | Destination | Retention |
+|---------|-------------|-----------|
+| `stack` (default) | Uses `daily` channel | — |
+| `daily` | `storage/logs/laravel.log` | 14 days |
+| `single` | `storage/logs/laravel.log` | — |
+| `stderr` | PHP stderr (→ CloudWatch) | — |
+| `slack` | Slack webhook | — |
+| `papertrail` | Syslog UDP | — |
+
+<Tip>
+In Docker/ECS, `stderr` output is captured by CloudWatch. For production debugging, check both CloudWatch logs and the Laravel log files (if the storage volume persists).
+</Tip>

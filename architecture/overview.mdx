@@ -1,0 +1,137 @@
+---
+title: "Architecture Overview"
+description: "How the codebase is structured and the patterns it uses"
+---
+
+## Directory layout
+
+```
+app/
+├── BlackBox/                    # External distance calculation microservice client
+│   ├── BlackBoxService.php      # Guzzle HTTP client for BlackBox API
+│   └── Models/                  # Distance, DistanceResponse value objects
+├── Console/
+│   └── Kernel.php               # 9 scheduled jobs (lessons, payouts, notifications)
+├── Events/                      # 3 events: AddressUpdated, MobileNumberUpdated, PersonalDetailUpdated
+├── Exceptions/
+│   ├── Handler.php              # Global exception handler (JSON for API requests)
+│   ├── HTTPException.php        # Factory: badRequest, unauthorized, forbidden, notFound, conflict
+│   ├── ModelException.php       # Factory for model-layer errors
+│   └── Payments/CaptureException.php
+├── Http/
+│   ├── Controllers/             # Current API controllers
+│   │   ├── Auth/                # Login, Register, ForgotPassword
+│   │   ├── Integrations/        # Zoom, Google OAuth callbacks
+│   │   └── v1/                  # Legacy v1 controllers (~42 files)
+│   ├── Kernel.php               # Middleware stack definition
+│   ├── Middleware/
+│   │   ├── SecureHeaders.php    # HSTS, X-Frame-Options, etc.
+│   │   ├── TrustedOrigins.php   # CORS validation
+│   │   ├── WebAPI.php           # Hybrid auth middleware
+│   │   └── API/
+│   │       ├── Internal.php     # Internal role check
+│   │       └── v1/ETag.php      # HTTP ETag caching
+│   └── Requests/
+│       └── FrontendRequestHelper.php  # URL builder for frontend redirects
+├── Jobs/                        # 14 queued job classes
+├── Listeners/                   # 6 event listeners
+├── Mail/                        # 16 Mailable classes
+├── Models/
+│   ├── [root]                   # ~20 models (Coupon, File, Note, Tutor, etc.)
+│   ├── v1/                      # ~107 versioned models — the real domain layer
+│   ├── Helpers/                 # ServiceVersion, TransformerVersion, Paginator
+│   ├── QueryScopes/             # Reusable scopes (TutorScope)
+│   ├── Services/                # Business logic (~25 service classes)
+│   │   ├── Google/              # Maps API, Calendar events, geocoding
+│   │   ├── Integrations/        # TwilioService
+│   │   ├── Payments/            # StripeService, StripePaymentStatus
+│   │   ├── PostcodeService/     # UK postcode lookup
+│   │   └── v1/                  # SearchService, AvailabilityService
+│   └── Transformers/v1/         # 15 API response transformer classes
+├── Notifications/               # ResetPassword, VerifyEmail
+├── Policies/                    # Booking, Calendar, User, Subscription
+├── Providers/                   # App, Auth, Event, Route, Broadcast
+└── Services/Redis/              # RedisClient, RedisGuard, RedisGuardTrait
+```
+
+## Architectural patterns
+
+### MVC + Service Layer
+
+The codebase follows a layered approach:
+
+```
+Request → Middleware → Controller → Service → Model → Database
+                                      ↓
+                              Transformer → Response
+```
+
+- **Controllers** handle HTTP concerns — request parsing, auth checks, response formatting
+- **Services** contain business logic — `StripeService`, `RegistrationService`, `SearchService`, etc.
+- **Models** define relationships, scopes, and some domain methods
+- **Transformers** format model data into API response shapes
+
+### API versioning (dual approach)
+
+Two versioning strategies coexist:
+
+<Tabs>
+<Tab title="Legacy v1 (URL prefix)">
+Routes in `routes/legacy-api.php` under `/api/v1/*` prefix. Controllers in `app/Http/Controllers/v1/`. Simpler, less abstraction, direct model operations.
+
+```
+GET /api/v1/search
+POST /api/v1/auth/login
+GET /api/v1/subjects
+```
+</Tab>
+<Tab title="Current (header-based)">
+Routes in `routes/api.php` under `/api/*`. Controllers read the `API-Version` header and dynamically resolve service/transformer classes via `ServiceVersion` and `TransformerVersion` helpers.
+
+```php
+// Controller resolves version-specific service
+$service = $this->getServiceClass('SearchService');
+$transformer = $this->getTransformerInstance('SearchTransformer');
+```
+</Tab>
+</Tabs>
+
+### Model inheritance
+
+The `Tutor` model extends `User` using the `calebporzio/parental` package:
+
+```php
+// app/Models/Tutor.php
+class Tutor extends User {
+    use HasParent;
+    // TutorScope applied globally — all Tutor queries pre-filtered to role_id=1
+}
+```
+
+This means `Tutor::query()` always includes `WHERE role_id = 1`. The `Tutor` model adds tutor-specific methods like `isVerified()`, `shouldApplyManagementFee()`, and `getAvailableLessonLocations()`.
+
+### Exception handling
+
+Custom exception classes with static factories:
+
+```php
+// Usage in code:
+throw HTTPException::notFound('Tutor not found');
+throw HTTPException::forbidden('Access denied', ['reason' => 'not_owner']);
+throw ModelException::conflict('Booking already exists');
+throw CaptureException(); // Fixed 500 — "Failed to capture payment"
+```
+
+The global `Handler.php` returns JSON for API requests, includes debug info when `APP_DEBUG=true`.
+
+### Namespace
+
+The application uses the `tutorbloc\` namespace (not `App\`):
+
+```php
+namespace tutorbloc\Http\Controllers;
+namespace tutorbloc\Models\v1;
+namespace tutorbloc\Models\Services;
+```
+
+Autoloading configured in `composer.json` as PSR-4: `"tutorbloc\\": "app/"`.

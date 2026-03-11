@@ -1,0 +1,221 @@
+---
+title: "Database"
+description: "Schema overview, key tables, relationships, and migration approach"
+---
+
+## Configuration
+
+- **Engine:** MySQL 5.7
+- **Charset:** `utf8mb4` (supports emoji/unicode)
+- **Collation:** `utf8mb4_unicode_ci`
+- **Strict mode:** Enabled
+- **Connections:** `mysql` (primary), `mysql_test` (test database)
+
+Config: `config/database.php`
+
+## Core tables
+
+### Users & roles
+
+```
+users
+├── id, firstname, lastname, email, password, username
+├── role_id → roles (TUTOR=1, STUDENT=2, PARENT=3, INTERNAL=200)
+├── country_id → countries
+├── gender (0=UNDEFINED, 1=MALE, 2=FEMALE)
+├── is_visible (boolean — tutor searchability)
+├── profile_picture_url, video_url
+├── unavailable_from, unavailable_until (holiday dates)
+├── email_verified_at
+└── deleted_at (soft deletes)
+```
+
+The `Tutor` model applies a global scope filtering to `role_id = 1`.
+
+### Lessons & bookings
+
+```
+lessons
+├── id, start, finish, duration (auto-calculated in minutes)
+├── suggested_start, suggested_finish (for reschedule proposals)
+├── state (0=CANCELLED, 1=ACTIVE, 2=RESCHEDULE)
+├── tutor_id → users
+├── subject_id → subjects
+├── level_id → subject_levels
+├── exam_board_id → exam_boards (nullable)
+├── teach_id → teaches
+├── experience_rating (1-5, post-lesson)
+├── cancellation_note
+└── deleted_at (soft deletes)
+
+bookings
+├── id, state
+│   (0=REFUNDED, 1=PAYED, 2=PENDING_APPROVAL,
+│    3=AWAITING_PAYMENT, 4=PARTIAL_REFUNDED, 5=REQUIRES_CAPTURE)
+├── lesson_id → lessons
+├── user_id → users (the student/parent who booked)
+├── availability_id → availabilities (nullable)
+└── deleted_at (soft deletes)
+```
+
+### Payments
+
+```
+payment_accounts
+├── id, account_id (Stripe customer/connect ID)
+├── user_id → users
+└── payment_gateway_id → payment_gateways
+
+payment_receipts
+├── id, charge_id (Stripe charge ID)
+├── amount, application_fee_id, application_fee_amount
+├── transfer_id (Stripe transfer ID for payout)
+├── booking_id → bookings
+├── commission_id → commissions
+├── coupon_id → coupons (nullable)
+├── card_id → cards
+└── payment_account_id → payment_accounts
+
+cards (soft deletes)
+├── id, card_id (Stripe payment method ID), token
+├── brand, last_4, exp_month, exp_year
+├── is_default (boolean)
+└── payment_account_id → payment_accounts
+
+bank_accounts (soft deletes)
+├── id, account_id, sort_code, account_number
+└── payment_account_id → payment_accounts
+
+commissions
+├── id, commission_fee, service_fee
+├── payout_fee, payout_amount_fee
+├── account_management_amount_fee
+└── is_enabled (boolean — only one active at a time)
+
+subscriptions (soft deletes)
+├── id, stripe_id, stripe_status, stripe_plan
+├── trial_end (nullable)
+└── user_id → users
+```
+
+### Teaching & availability
+
+```
+teaches (soft deletes)
+├── id, user_id → users (tutor)
+├── subject_id → subjects
+├── is_enabled (boolean)
+└── Each has one lesson_prices entry
+
+lesson_prices
+├── id, hourly_rate
+└── teach_id → teaches
+
+day_availabilities
+├── id, day (day of week mapped to generic dates)
+└── user_id → users (tutor)
+
+availabilities
+├── id, from, to (datetime)
+├── preferred_duration
+├── user_id → users
+└── day_availability_id → day_availabilities
+```
+
+### Verification
+
+```
+verification_accounts (soft deletes)
+├── id, status (UPLOAD_DOCUMENT, PASS, FAIL, PENDING, INTERNAL_REVIEW)
+├── applicant_id (external Onfido/Yoti ID)
+├── user_id → users
+├── file_id → files
+└── verification_gateway_id → verification_gateways
+
+verification_dbs
+├── id, status (UPLOAD_DOCUMENT, PENDING, PASS, FAIL)
+├── certificate_number, countersignatory, registered_by
+├── date_of_issue, document_image_url
+└── user_id → users
+
+verification_qualifications
+├── id, status (UPLOAD_DOCUMENT, PENDING, PASS, FAIL)
+├── document_image_url
+└── user_id → users
+```
+
+### User details
+
+```
+personal_details
+├── id, gender, date_of_birth, name_title_id → name_titles
+└── user_id → users
+
+addresses
+├── id, line_1, line_2, line_3, line_4, post_code
+├── country_name, country_id → countries
+├── is_primary (boolean)
+└── personal_detail_id → personal_details
+
+profiles
+├── id, bio (500 char max)
+├── teacher_reference_number (string, optional)
+├── teaching_experience
+├── tutoring_experience (stored in MONTHS)
+└── user_id → users
+
+locations
+├── id, post_code, region, lat, lng
+├── max_travel_distance
+└── user_id → users
+```
+
+## Pivot tables
+
+| Table | Relationship |
+|-------|-------------|
+| `lesson_user` | Lessons ↔ Students (many-to-many) |
+| `lesson_child` | Lessons ↔ Children (many-to-many) |
+| `coupon_uses` | Users ↔ Coupons (usage tracking) |
+| `level_subject` | SubjectLevels ↔ Subjects |
+| `taught_subject_levels` | Teaches ↔ SubjectLevels |
+| `taught_exam_boards` | Teaches ↔ ExamBoards |
+| `language_user` | Users ↔ Languages |
+| `fileables` | Polymorphic file attachments |
+
+## Migrations
+
+~129 migration files in `database/migrations/`.
+
+```bash
+# Run all migrations
+php artisan migrate --force
+
+# Run on test database
+php artisan migrate --database=mysql_test --force
+
+# Rollback
+php artisan migrate:rollback
+```
+
+## Important gotchas
+
+<Warning>
+**Tutor addresses:** Adding a new address **deletes** the existing one. Tutors are limited to 1 address. Students can have multiple.
+</Warning>
+
+<Warning>
+**Commission model:** Only one commission can be active at a time. `Commission::addNewModel()` disables all existing commissions before inserting the new one.
+</Warning>
+
+<Warning>
+**PaymentReceipt boot method:** Auto-calculates the commission breakdown on **every model retrieval**. This hits `CommissionService` on every `PaymentReceipt::find()`. Watch for N+1 performance issues on bulk queries.
+</Warning>
+
+<Note>
+**profiles.tutoring_experience** is stored in **months**, not years. The `Profile::getTutoringExperience()` method formats it as "X years Y months" for display.
+</Note>
+
+<Note>
+**files** table uses non-incrementing **UUID** primary keys (string), not auto-increment integers.
+</Note>

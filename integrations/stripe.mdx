@@ -1,0 +1,168 @@
+---
+title: "Stripe"
+description: "Payment processing, subscriptions, Connect payouts, and webhooks"
+---
+
+## Overview
+
+Stripe handles all payment processing. The integration uses **Stripe Connect** for marketplace-style payments: students pay the platform, the platform pays tutors.
+
+**File:** `app/Models/Services/Payments/StripeService.php`
+
+**SDK:** `stripe/stripe-php` v7.2
+
+## Configuration
+
+```
+STRIPE_SECRET              — Stripe secret API key
+STRIPE_SIGNING_SECRET      — Webhook signing secret (payment events)
+STRIPE_SUBSCRIPTION_SIGNING_SECRET — Webhook signing secret (subscription events)
+STRIPE_VERSION             — Stripe API version
+BUSINESS_PROFILE_MCC_CODE  — Merchant category code
+```
+
+Config file: `config/services.php` under `stripe` key.
+
+## Account types
+
+Two types of Stripe accounts are used:
+
+| Type | Prefix | Owner | Purpose |
+|------|--------|-------|---------|
+| Customer | `cus_*` | Student/Parent | Holds payment methods, makes charges |
+| Connect | `acct_*` | Tutor | Receives payouts |
+
+Both stored in `payment_accounts` table, linked to `payment_gateways`.
+
+## Key operations
+
+### Customer management
+
+```php
+StripeService::createCustomer($user)
+```
+Creates a Stripe Customer, stores the ID in `PaymentAccount`. Called during registration or first payment.
+
+### Card management
+
+```php
+StripeService::createCard($user, $data)
+// Validates card, creates PaymentMethod, attaches to customer, sets as default
+
+StripeService::validateCard($data)
+// Validates card without saving — used for pre-validation
+```
+
+Cards stored in the `cards` table with `card_id`, `brand`, `last_4`, `exp_month`, `exp_year`, `is_default`. Soft-deleted when removed.
+
+### Charging
+
+```php
+StripeService::createCharge($paymentAccount, $card, $tutorAccount, $currency, $total, $destinationAmount, $fee, $coupon)
+```
+
+Creates a PaymentIntent with **manual capture** (`capture_method: manual`):
+- Pre-authorizes the amount on the student's card
+- Doesn't charge until explicitly captured
+- Supports 3D Secure (returns `redirectURL` if `requires_action`)
+- Returns `StripePaymentStatus` value object
+
+### Capture
+
+```php
+StripeService::capture($paymentIntentId)
+```
+
+Captures a pre-authorized payment. Called when the booking is confirmed.
+
+### Receipts
+
+```php
+StripeService::createReceipt($paymentIntentId, $booking, $paymentAccount)
+```
+
+Creates a `PaymentReceipt` record with:
+- `charge_id` from Stripe
+- Commission breakdown (calculated via `CommissionService`)
+- Coupon association if applicable
+
+### Payouts (Connect transfers)
+
+```php
+StripeService::createPayout($paymentAccount, $paymentReceipt)
+```
+
+Transfers funds to the tutor's Connect account. Uses either `transfer_group` or `source_transaction` depending on the payment setup. The `transfer_id` is saved on the receipt.
+
+### Refunds
+
+```php
+StripeService::refund($paymentReceipt)           // Full refund
+StripeService::refund($paymentReceipt, $amount)   // Partial refund
+```
+
+## Subscriptions
+
+Tutors pay a subscription fee to use the platform.
+
+```php
+StripeService::createSubscription($user, $product)
+StripeService::createSubscriptionWithTrial($user, $product, $trialEndDate)
+```
+
+Subscription products are defined in the `subscription_products` table with `product_id`, `price_id`, and `trial_period`.
+
+### Billing portal
+
+```php
+StripeService::getCancelSubscriptionCustomerPortalURL($paymentAccount)
+StripeService::getUpdatePaymentMethodSubscriptionCustomerPortalURL($paymentAccount)
+```
+
+Generates Stripe Customer Portal URLs for self-service subscription management.
+
+### Subscription statuses
+
+Tracked in the `subscriptions` table:
+
+| Status | Meaning |
+|--------|---------|
+| `trialing` | In trial period |
+| `active` | Active and paying |
+| `canceled` | Cancelled |
+| `incomplete` | Payment failed, awaiting retry |
+| `incomplete_expired` | Payment failed, subscription ended |
+
+## Webhooks
+
+### Payment webhooks
+
+**Endpoint:** `POST /api/v1/payments/webhooks/accounts`
+
+Validates webhook signature using `STRIPE_SIGNING_SECRET`.
+
+### Subscription webhooks
+
+**Endpoint:** `POST /api/subscriptions/webhooks`
+
+```php
+StripeService::handleSubscriptionWebhook($request)
+```
+
+Validates signature using `STRIPE_SUBSCRIPTION_SIGNING_SECRET`. Updates subscription status in the database based on Stripe events.
+
+<Warning>
+Both webhook endpoints are **public** (no auth middleware). Security relies entirely on Stripe's webhook signature verification.
+</Warning>
+
+## Payment status flow
+
+```
+PaymentIntent created (manual capture)
+├── requires_action → Client handles 3D Secure → succeeds/fails
+├── requires_capture → Booking state: REQUIRES_CAPTURE (5)
+│   └── capture() → Booking state: PAYED (1)
+│       └── createPayout() → Transfer to tutor Connect account
+├── succeeded → Booking state: PAYED (1)
+└── canceled/failed → Payment failed
+```

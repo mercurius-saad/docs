@@ -1,0 +1,167 @@
+---
+title: "Docker"
+description: "Container configuration and local development setup"
+---
+
+## Services
+
+**File:** `docker-compose.yaml`
+
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| `app` | `php:7.2-fpm-alpine3.11` | 9000, 2525 | PHP-FPM application server |
+| `webserver` | `nginx:alpine` | 80, 443 | Nginx reverse proxy |
+| `mysql-db` | `mysql:5.7` | 3306 | Primary database |
+| `mysql-db-test` | `mysql:5.7` | 3310 | Test database |
+| `redis` | `redis` | 6379 | Cache, sessions, queue |
+| `blackbox` | `tutorbloc.blackbox` | 3000 | Distance calculation microservice |
+
+All services on the `tb.network` Docker network.
+
+### Database defaults
+
+**Primary:**
+```
+MYSQL_DATABASE=tutorbloc_db
+MYSQL_USER=admin
+MYSQL_PASSWORD=secret
+MYSQL_ROOT_PASSWORD=secret
+```
+
+**Test:**
+```
+MYSQL_DATABASE=tutorbloc_db_test
+MYSQL_USER=tester
+MYSQL_PASSWORD=tester_secret
+MYSQL_ROOT_PASSWORD=secret
+```
+
+## Dockerfile
+
+**File:** `Dockerfile`
+
+Multi-stage build:
+
+### Stage 1: Nginx
+
+```dockerfile
+FROM nginx:alpine
+# Copies nginx config and public directory
+```
+
+### Stage 2: App (PHP-FPM)
+
+```dockerfile
+FROM php:7.2-fpm-alpine3.11
+WORKDIR /src
+```
+
+**System dependencies installed:**
+- libxml2, bash, sudo
+- freetype, libjpeg, libpng (image processing)
+- libzip, curl, imap, xslt
+- PostgreSQL libs, libgcrypt, oniguruma
+
+**PHP extensions:**
+- gd (with freetype/jpeg/png support)
+- bcmath, ctype, json
+- pdo, pdo_mysql, mysqli
+- tokenizer, xml
+
+**Additional tools:**
+- Dockerize v0.6.1 (wait-for-service utility)
+- Composer (dependency installation)
+
+### Container startup
+
+The entrypoint runs:
+
+```bash
+php artisan migrate --force    # Run pending migrations
+crond                          # Start cron daemon (scheduler)
+php-fpm                        # Start PHP-FPM
+```
+
+<Warning>
+Migrations run on **every container start**. If a migration fails, the container fails to start. Be careful with migration changes in production.
+</Warning>
+
+### Permissions
+
+The Dockerfile sets `www-data:www-data` ownership on:
+- `bootstrap/`
+- `storage/`
+- `public/`
+
+## Nginx configuration
+
+**File:** `app-nginx.conf`
+
+```nginx
+server {
+    listen 80 default_server;
+    root /src/public;
+    client_max_body_size 100M;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+        gzip_static on;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass app:9000;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+}
+```
+
+Key settings:
+- **Max upload size:** 100MB
+- **PHP handling:** FastCGI pass to `app:9000`
+- **Gzip:** Static gzip enabled
+- **All routes** fall through to `index.php` (Laravel routing)
+
+## Volumes
+
+Docker Compose mounts:
+- Source code → `/src`
+- `vendor/` → named volume (persists between rebuilds)
+- `storage/` → named volume
+- `bootstrap/` → named volume
+- `public/` → shared between app and nginx
+
+Database volumes:
+- `./data` → MySQL primary data
+- `./data_test` → MySQL test data
+
+<Note>
+`data/` and `data_test/` directories are gitignored. They persist database state between Docker restarts.
+</Note>
+
+## Common commands
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
+
+# Enter app container
+docker-compose exec app sh
+
+# Run artisan commands
+docker-compose exec app php artisan migrate
+docker-compose exec app php artisan tinker
+docker-compose exec app php artisan queue:work
+
+# Run tests
+docker-compose exec app vendor/bin/phpunit
+
+# Rebuild containers
+docker-compose up -d --build
+
+# Stop all services
+docker-compose down
+```

@@ -1,0 +1,145 @@
+---
+title: "Booking Endpoints"
+description: "Lesson booking, management, and cancellation"
+---
+
+## Current API
+
+### List bookings
+
+```
+GET /api/bookings
+```
+
+**Auth:** `auth:api`
+
+**Policy:** `BookingPolicy::viewAll()` — internal users see all, others see only their own.
+
+---
+
+### List own bookings
+
+```
+GET /api/bookings/self
+```
+
+**Auth:** `auth:api`
+
+Returns bookings where the authenticated user is the student or the parent.
+
+---
+
+### Create booking
+
+```
+POST /api/bookings
+```
+
+**Auth:** `auth:api`
+
+Creates a new lesson and booking. Body includes:
+- Tutor ID, subject, level, exam board
+- Start/finish times
+- Lesson type (online, tutor's home, student's home)
+- Child IDs (optional, for parent bookings)
+- Address (for in-person lessons)
+
+Creates Lesson (state: ACTIVE) and Booking (state: AWAITING_PAYMENT).
+
+---
+
+### Get booking
+
+```
+GET /api/bookings/{id}
+```
+
+**Auth:** `web.api`
+
+Returns full booking details via `BookingTransformer` including:
+- Lesson info (state, times, subject, address)
+- Tutor info (profile, rating, hours taught)
+- Student/contact info
+- Meeting details (join URLs)
+- Notes (student + tutor)
+- Payment receipt with pricing breakdown
+- Activity timeline
+- Calendar events
+
+---
+
+### Update booking
+
+```
+PUT /api/bookings/{id}
+```
+
+**Auth:** `web.api`
+
+Updates booking details (e.g., approve/confirm).
+
+---
+
+### Cancel booking
+
+```
+PUT /api/bookings/{id}/cancel
+```
+
+**Auth:** `web.api`
+
+**Policy:** `BookingPolicy::cancel()` — internal users, booking owner, lesson student, or lesson parent.
+
+Cancels the lesson and processes refund via Stripe. Sends `LessonCancelled` email.
+
+---
+
+## Legacy v1 API
+
+### Bookings CRUD
+
+```
+GET    /api/v1/bookings
+POST   /api/v1/bookings
+GET    /api/v1/bookings/{id}
+PUT    /api/v1/bookings/{id}
+DELETE /api/v1/bookings/{id}
+```
+
+**Auth:** `auth:api`
+
+### Reschedule
+
+```
+PUT /api/v1/bookings/{id}/reschedule
+```
+
+**Auth:** `auth:api`
+
+### Approve
+
+```
+PUT /api/v1/bookings/{id}/approve
+```
+
+**Auth:** `auth:api`
+
+### Cancel
+
+```
+PUT /api/v1/bookings/{id}/cancel
+```
+
+**Auth:** `auth:api`
+
+---
+
+## Booking state transitions
+
+```
+POST /bookings     → AWAITING_PAYMENT (3)
+POST /payments/pay → REQUIRES_CAPTURE (5)  [if manual capture]
+                   → PAYED (1)             [if immediate]
+Capture            → PAYED (1)
+Cancel             → REFUNDED (0) or PARTIAL_REFUNDED (4)
+```

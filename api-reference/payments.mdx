@@ -1,0 +1,185 @@
+---
+title: "Payment Endpoints"
+description: "Payment processing, cards, and bank accounts"
+---
+
+## Payments
+
+### Make payment
+
+```
+POST /api/payments/pay
+```
+
+**Auth:** `auth:api`
+
+Creates a Stripe PaymentIntent with manual capture. Handles:
+- Standard payments
+- 3D Secure (returns `redirectURL` if `requires_action`)
+- Coupon discount application
+
+Returns `StripePaymentStatus` with status and client secret.
+
+---
+
+### Check payment status
+
+```
+GET /api/payments/{id}/status
+```
+
+**Auth:** None (public)
+
+Returns current PaymentIntent status.
+
+---
+
+### Legacy payment endpoints
+
+```
+GET    /api/v1/payments
+POST   /api/v1/payments
+GET    /api/v1/payments/{id}
+PUT    /api/v1/payments/{id}
+DELETE /api/v1/payments/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+## Cards
+
+### List cards
+
+```
+GET /api/cards
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Create card
+
+```
+POST /api/cards
+```
+
+**Auth:** `auth:api`
+
+Validates card via Stripe, creates PaymentMethod, attaches to customer, sets as default.
+
+---
+
+### Validate card
+
+```
+POST /api/cards/validate
+```
+
+**Auth:** None (public)
+
+Pre-validates a card without saving.
+
+---
+
+### Update card
+
+```
+PUT /api/cards/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Delete card
+
+```
+DELETE /api/cards/{id}
+```
+
+**Auth:** `auth:api`
+
+Soft-deletes the card.
+
+---
+
+## Bank accounts (tutor payouts)
+
+### List bank accounts
+
+```
+GET /api/bank-accounts
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Create bank account
+
+```
+POST /api/bank-accounts
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Link bank account
+
+```
+POST /api/bank-accounts/link
+```
+
+**Auth:** `auth:api` + `internal`
+
+Links a bank account to a Stripe Connect payment account.
+
+---
+
+### Update bank account
+
+```
+PUT /api/bank-accounts/{id}
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Delete bank account
+
+```
+DELETE /api/bank-accounts/{id}
+```
+
+**Auth:** `auth:api`
+
+Soft-deletes the bank account.
+
+---
+
+## Coupons
+
+### List coupons
+
+```
+GET /api/coupons
+```
+
+**Auth:** `auth:api`
+
+---
+
+### Validate coupon
+
+```
+GET /api/coupons/{uid}/validate
+```
+
+**Auth:** `auth:api`
+
+Validates coupon by UID — checks expiry, usage limits, and returns discount calculation.

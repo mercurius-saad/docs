@@ -1,0 +1,140 @@
+---
+title: "Testing"
+description: "Test structure, how to run tests, and what's covered"
+---
+
+## Test structure
+
+```
+tests/
+├── Feature/              # Feature/integration tests
+└── Unit/
+    ├── EnvTest.php       # Validates 115 required env vars exist
+    └── ModelTests/
+        ├── UserTest.php          # 69 test methods (most comprehensive)
+        ├── BookingTest.php
+        ├── LessonTest.php
+        ├── AddressTest.php
+        ├── NoteTest.php
+        ├── AvailabilityTest.php
+        ├── ProfileTest.php
+        └── [Transformer tests]
+```
+
+## Running tests
+
+```bash
+# Via Docker
+docker-compose exec app vendor/bin/phpunit
+
+# Locally (requires mysql_test connection)
+vendor/bin/phpunit
+
+# Run specific test file
+vendor/bin/phpunit tests/Unit/ModelTests/UserTest.php
+
+# Run specific test method
+vendor/bin/phpunit --filter testUserCanBeStudent
+```
+
+## Test configuration
+
+**File:** `phpunit.xml`
+
+```xml
+APP_ENV=testing
+DB_CONNECTION=mysql_test          <!-- Separate test database -->
+CACHE_DRIVER=array                <!-- In-memory cache -->
+SESSION_DRIVER=array              <!-- In-memory sessions -->
+QUEUE_DRIVER=sync                 <!-- Jobs run inline -->
+FILESYSTEM_DRIVER=public          <!-- Local filesystem -->
+LOG_CHANNEL=null                  <!-- No logging -->
+```
+
+The test database is a separate MySQL instance:
+- **Docker:** `mysql-db-test` service on port 3310
+- **Database:** `tutorbloc_db_test`
+- **Credentials:** `tester` / `tester_secret`
+
+## Key test files
+
+### EnvTest
+
+**File:** `tests/Unit/EnvTest.php`
+
+Validates that all 115 required environment variables are set. Acts as a deployment safety net — if any env var is missing, this test fails.
+
+<Tip>
+If you add a new env var to the app, add it to `EnvTest` too. This prevents deployment issues from missing config.
+</Tip>
+
+### UserTest (69 methods)
+
+**File:** `tests/Unit/ModelTests/UserTest.php`
+
+The most comprehensive test file. Covers:
+
+- **Role filtering** — students, tutors, parents correctly filtered
+- **Tutor search scopes** — by subject, level, exam boards
+- **User visibility** — `isVisible` scope works correctly
+- **Distance calculations** — `withDistance` and `withinDistance` scopes
+- **Verification checks** — identity, DBS, qualifications
+- **Payment accounts** — active account detection
+- **Address/mobile validation** — required field checks
+- **Lesson booking availability** — holiday checks, scheduling conflicts
+- **Profile completeness** — step-by-step completion tracking
+- **Language defaults** — English auto-added for tutors
+- **OAuth integration** — Zoom connection status
+- **Video/bio content** — presence checks
+- **Subscription status** — valid/invalid subscription states
+
+### ProfileTest
+
+**File:** `tests/Unit/ModelTests/ProfileTest.php`
+
+Tests teacher reference number validation.
+
+## Test coverage
+
+<Warning>
+**Coverage gaps to be aware of:**
+- Controller/integration test coverage appears limited
+- No visible mocking of external services (Stripe, Twilio, Onfido) in test setup — **unclear if integration tests hit real APIs. Confirm with team.**
+- Payment flow end-to-end testing not visible
+- Webhook handler tests not visible
+</Warning>
+
+## Test database setup
+
+Before running tests, ensure the test database is migrated:
+
+```bash
+# Via Docker
+docker-compose exec app php artisan migrate --database=mysql_test --force
+
+# Locally
+php artisan migrate --database=mysql_test --force
+```
+
+## CI/CD testing
+
+In the staging build pipeline (`buildspec-staging.yml`):
+
+1. Waits for test MySQL container to be ready (120s timeout)
+2. Runs migrations on test database
+3. Runs full PHPUnit suite
+4. Build fails if any test fails
+
+<Note>
+**Production builds skip tests entirely** — they rely on staging tests having passed.
+</Note>
+
+## Code style
+
+PHP CS Fixer is available for code style enforcement:
+
+```bash
+vendor/bin/php-cs-fixer fix
+```
+
+Config: standard PHP CS Fixer rules (no custom config file found).

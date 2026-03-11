@@ -1,0 +1,128 @@
+---
+title: "Auth Endpoints"
+description: "Login, registration, password reset, and account management"
+---
+
+## Current API
+
+### Login
+
+```
+POST /api/auth/login
+```
+
+**Auth:** None
+
+**Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+**Response:** Session token for subsequent authenticated requests.
+
+**Handler:** `LoginController` → `SessionService::createSession()`
+
+---
+
+### Register
+
+```
+POST /api/auth/register
+```
+
+**Auth:** None
+
+**Body:** User details including email, password, firstname, lastname, role, country, and optional fields (DOB, profile picture, address, mobile, DBS, card details).
+
+**Handler:** `RegisterController` → `RegistrationService::register()`
+
+**Side effects:**
+- Creates user, personal details, address, mobile number
+- For tutors: DBS association, Stripe card, subscription
+- Fires `Registered` event → email verification + internal notifications
+- Auto-creates session (returns token)
+
+---
+
+### Logout
+
+```
+POST /api/auth/logout
+```
+
+**Auth:** `auth:api`
+
+**Handler:** `LoginController` → `SessionService::destroySession()`
+
+---
+
+### Forgot password
+
+```
+POST /api/auth/forgot
+```
+
+**Auth:** None
+
+**Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Handler:** `ForgotPasswordController` — sends `ResetPassword` notification (6-minute token expiry).
+
+---
+
+### Delete account
+
+```
+DELETE /api/auth
+```
+
+**Auth:** `auth:api`
+
+**Handler:** Soft-deletes user. Sends `UserDeleted` email to `hello@tutorbloc.com`.
+
+---
+
+## Legacy v1 API
+
+### Login
+
+```
+POST /api/v1/auth/login
+GET  /api/v1/auth/login  (shows login form)
+```
+
+### Register
+
+```
+POST /api/v1/auth/register
+```
+
+### Logout
+
+```
+POST /api/v1/auth/logout
+```
+
+### Forgot password
+
+```
+POST /api/v1/auth/forgot
+```
+
+### Email verification
+
+```
+GET /api/v1/auth/email/verify/resend
+```
+
+**Auth:** `auth:api`
+
+Resends email verification notification. Throttled.

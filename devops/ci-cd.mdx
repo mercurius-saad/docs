@@ -1,0 +1,171 @@
+---
+title: "CI/CD Pipeline"
+description: "Build, test, and deployment pipeline configuration"
+---
+
+## Overview
+
+The deployment pipeline flows:
+
+```
+Bitbucket (source) → AWS CodeBuild → ECR (images) → ECS (deployment)
+```
+
+There's also a basic Bitbucket Pipelines config for direct testing.
+
+## Bitbucket Pipelines
+
+**File:** `bitbucket-pipelines.yml`
+
+Simple CI pipeline that runs on all branches:
+
+```yaml
+image: php:7.1.3
+
+pipelines:
+  default:
+    - step:
+        script:
+          - apt-get update && apt-get install -y unzip
+          - composer install
+          - vendor/bin/phpunit
+        caches:
+          - composer
+```
+
+## AWS CodeBuild — Staging
+
+**File:** `buildspec-staging.yml`
+
+<Steps>
+
+<Step title="Pre-build">
+1. Downloads `.env` from `s3://tutorbloc-app/env-configurations/staging/.env`
+2. Downloads `APNS-Key.p8` from S3 (push notification certificate)
+3. Downloads `AAACertificateServices.crt` from S3 (SSL certificate)
+4. Logs in to ECR
+5. Pulls BlackBox Docker image from ECR
+</Step>
+
+<Step title="Build">
+1. Logs in to Docker Hub (for base images)
+2. Runs `docker-compose up -d` (builds and starts all services)
+</Step>
+
+<Step title="Post-build">
+1. Waits for `mysql-db-test` to be ready (120s timeout via Dockerize)
+2. Runs database migrations on test database:
+   ```bash
+   php artisan migrate --database=mysql_test --force
+   ```
+3. Runs full test suite:
+   ```bash
+   vendor/bin/phpunit
+   ```
+4. Tags Docker images:
+   - `tutorbloc.app:staging` and `tutorbloc.app:staging-{BUILD_NUMBER}`
+   - `tutorbloc.app.nginx:staging` and `tutorbloc.app.nginx:staging-{BUILD_NUMBER}`
+   - `redis:staging`
+5. Pushes all images to ECR
+</Step>
+
+</Steps>
+
+**Artifacts:** `appspec.yaml`, `staging-taskdef.json`
+
+## AWS CodeBuild — Production
+
+**File:** `buildspec-production.yml`
+
+Same structure as staging with key differences:
+
+| Aspect | Staging | Production |
+|--------|---------|------------|
+| APP_ENV | `staging` | `production` |
+| Runs migrations | Yes (test DB) | **No** |
+| Runs tests | Yes | **No** |
+| Image tags | `staging-*` | `production-*` |
+| Artifacts | staging-taskdef.json | production-taskdef.json |
+
+<Warning>
+**Production builds skip tests entirely.** The assumption is that staging tests have already passed. Production also skips test database migrations.
+</Warning>
+
+<Warning>
+**Potential bug:** `buildspec-production.yml` downloads APNS key and SSL certificate from the **staging** config path, not production. This may be intentional (shared certs) or a copy-paste error. **Confirm with team.**
+</Warning>
+
+## ECS deployment
+
+### App spec
+
+**File:** `appspec.yaml`
+
+```yaml
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "nginx"
+          ContainerPort: 80
+```
+
+The load balancer routes to the Nginx container on port 80.
+
+### Task definitions
+
+**Production** (`production-taskdef.json`):
+- 3 containers: app, nginx, blackbox
+- All with 128MB memory reservation
+- Bridge networking mode
+- Environment loaded from S3
+- CloudWatch logging to `/ecs/production-app-ec2`
+
+**Staging** (`staging-taskdef.json`):
+- Same structure
+- Nginx exposes ports 80 AND 443 (vs only 80 in production)
+- CloudWatch logging to `/ecs/staging-app-ec2`
+
+### Container startup order
+
+1. **blackbox** starts first (no dependencies)
+2. **app** starts and links to blackbox
+   - Runs `php artisan migrate --force`
+   - Starts cron daemon
+   - Starts PHP-FPM
+3. **nginx** starts and links to app
+   - Proxies HTTP requests to app:9000
+
+## ECR images
+
+```
+Registry: 170904582664.dkr.ecr.eu-west-2.amazonaws.com
+
+Images:
+├── tutorbloc.app          → PHP-FPM application
+├── tutorbloc.app.nginx    → Nginx web server
+├── tutorbloc.blackbox     → Distance calculation service
+└── redis                  → Redis cache
+```
+
+Each image is tagged with:
+- `{environment}` — latest for that environment (e.g., `production`)
+- `{environment}-{build_number}` — specific build (e.g., `production-42`)
+
+## Legacy: Elastic Beanstalk
+
+**File:** `Dockerrun.aws.json`
+
+An older single-container EB config exists:
+```json
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": { "Name": "tbjeremiah/tutorbloc.app:staging" },
+  "Ports": [{ "ContainerPort": "9000" }]
+}
+```
+
+Also includes `.ebextensions/01_server.config` with Nginx configuration. This appears to be a **legacy setup** — current deployment uses ECS.

@@ -1,0 +1,145 @@
+---
+title: "Jobs & Scheduling"
+description: "Background jobs and the Laravel scheduler configuration"
+---
+
+## Scheduler
+
+**File:** `app/Console/Kernel.php`
+
+The Laravel scheduler runs via cron inside the Docker container (configured in `laravel-cron` file). All times are UTC.
+
+## Scheduled jobs
+
+### Every 15 minutes
+
+<AccordionGroup>
+
+<Accordion title="CheckLessonStatus">
+**File:** `app/Jobs/CheckLessonStatus.php`
+
+Finds rescheduled lessons where the suggested time has passed and auto-cancels them. Uses `PaymentService` for refund processing and `LessonService` for state transitions.
+</Accordion>
+
+<Accordion title="SendLessonReminderPushNotification">
+**File:** `app/Jobs/SendLessonReminderPushNotification.php`
+
+Sends push notifications to users with lessons starting in approximately:
+- **24 hours**
+- **2 hours**
+
+Finds lessons by matching exact start times against the current time plus offset. Uses `LessonService::notifyLessonReminder()`.
+</Accordion>
+
+<Accordion title="SendPendingPayouts">
+**File:** `app/Jobs/SendPendingPayouts.php`
+
+Processes tutor payouts for completed bookings:
+1. Finds bookings in `PAYED` state with no `transfer_id` on the receipt, older than 2 days
+2. Creates Stripe Connect transfers to tutor accounts via `StripeService::createPayout()`
+3. Sends `SendPendingPayoutStatus` email to internal team (success or failure)
+4. Handles exceptions gracefully — one failed payout doesn't block others
+</Accordion>
+
+</AccordionGroup>
+
+### Daily at 01:00 UTC
+
+<Accordion title="UpdateHoursTaught">
+**File:** `app/Jobs/UpdateHoursTaught.php`
+
+Updates the hours-taught statistics for all tutors. Iterates through tutors with active `Teach` records and calls `Teach::caculateHoursTaught()` on each.
+</Accordion>
+
+### Daily at 02:00 UTC
+
+<Accordion title="CleanUpStaleFiles">
+**File:** `app/Jobs/CleanUpStaleFiles.php`
+
+Deletes orphaned files older than 100 days:
+1. Queries the `files` table for records not referenced in the `fileables` polymorphic table
+2. Deletes files from storage (S3)
+3. Deletes database records
+</Accordion>
+
+### Daily at 08:30 UTC
+
+<Accordion title="ValidateZoomTokens">
+**File:** `app/Jobs/ValidateZoomTokens.php`
+
+**Production only.** Validates Zoom OAuth tokens for all connected tutors:
+1. Fetches all Zoom `OAuthServiceToken` records
+2. Calls `ZoomService` to validate each token
+3. If invalid: sends `ReconnectZoom` email to the tutor
+4. Tracks reconnection attempts on the token record
+5. If max attempts reached: deletes the token
+6. Includes 1-second sleep between validations (rate limiting)
+</Accordion>
+
+### Daily at 10:00 UTC
+
+<AccordionGroup>
+
+<Accordion title="SendReviewTutorNotification">
+**File:** `app/Jobs/SendReviewTutorNotification.php`
+
+Sends review requests to students/parents for lessons completed yesterday:
+1. Finds active lessons that ended yesterday
+2. Determines the reviewer — student directly, or parent if the learner is a child
+3. Checks related lessons count before sending
+4. Avoids duplicates: one email per tutor-reviewer pair per day
+5. Sends `ReviewTutor` email with review submission link
+</Accordion>
+
+<Accordion title="SendSummaryNoteNotification">
+**File:** `app/Jobs/SendSummaryNoteNotification.php`
+
+Reminds tutors to add lesson summary notes:
+1. Finds completed lessons from yesterday that don't have notes yet
+2. Calls `LessonService::notifyLessonSummaryNoteReminder()` for each
+</Accordion>
+
+<Accordion title="SendTutorProfileCompletionNotification">
+**File:** `app/Jobs/SendTutorProfileCompletionNotification.php`
+
+Nudges tutors with incomplete profiles:
+1. Targets tutors created exactly 3 days ago
+2. Checks if profile is still incomplete
+3. Sends push notification with app launch link
+4. Uses `RemotePushNotifiable` trait for push delivery
+</Accordion>
+
+</AccordionGroup>
+
+## Non-scheduled jobs
+
+These job classes exist but aren't in the scheduler (run manually or triggered by events):
+
+| Job | Purpose |
+|-----|---------|
+| `SendClaimUsernameEmail` | One-time campaign: emails verified tutors without usernames (date range 2020-04-09 to 2022-02-01) |
+| `SendClaimUsernameEmailTest` | Test version of above (doesn't actually send) |
+| `SendClaimUsernameReminderEmail` | Follow-up reminder for username claiming |
+| `UpdateStripeAccountCapability` | Updates `transfers` capability on all Stripe Connect accounts |
+
+<Note>
+`CheckVerificationStatusOfPendingApplicants` exists but is **entirely commented out/disabled**.
+</Note>
+
+## Queue configuration
+
+All jobs implement `ShouldQueue`. Queue driver is configured via `QUEUE_DRIVER` env var.
+
+| Driver | Config |
+|--------|--------|
+| `sync` | Default — runs jobs synchronously (no queue) |
+| `redis` | Uses default Redis connection, 90s retry_after |
+| `database` | Uses `jobs` table, 90s retry_after |
+
+**File:** `config/queue.php`
+
+Failed jobs are stored in the `failed_jobs` table.
+
+<Warning>
+The default queue driver is `sync`, meaning jobs run inline during HTTP requests. For production, this should be set to `redis` or `database` with a queue worker process.
+</Warning>

@@ -1,0 +1,133 @@
+---
+title: "Search Endpoints"
+description: "Tutor search and discovery"
+---
+
+## Search tutors
+
+```
+POST /api/v1/search
+GET  /api/v1/search
+```
+
+**Auth:** None (public)
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `subject_id` | int | Filter by subject |
+| `subject_level_ids` | array | Filter by subject levels |
+| `exam_boards` | array | Filter by exam boards |
+| `date` | date | Requested lesson date |
+| `duration` | int | Lesson duration in minutes |
+| `post_code` | string | Search location (UK postcode) |
+| `lat` / `lng` | float | Search coordinates (alternative to postcode) |
+| `sort` | string | Sort order |
+| `filters[lesson_type]` | string | online, tutors_home, students_home |
+| `filters[gender]` | string | male, female |
+| `filters[language]` | int | Language ID |
+
+### Response
+
+Paginated list of matching tutors, each with:
+
+```json
+{
+  "id": 123,
+  "firstname": "Jane",
+  "lastname": "D",
+  "profile_picture_url": "...",
+  "location": {
+    "distance": 5
+  },
+  "profile": {
+    "tutoring_experience": "2 years 3 months"
+  },
+  "teaching_info": {
+    "teach_id": 45,
+    "subject": { "id": 1, "title": "Mathematics" },
+    "subject_level": { "id": 2, "title": "GCSE" },
+    "exam_boards": [...]
+  },
+  "lesson_price_breakdown": {
+    "sign": "£",
+    "currency_code": "GBP",
+    "lesson_price": "30.00",
+    "service_fee": "3.00",
+    "total": "33.00"
+  }
+}
+```
+
+### How it filters
+
+See [Tutor Search workflow](/workflows/search) for the full query chain. Key filters:
+
+1. Tutor must have complete profile (picture, video, bio, address, mobile)
+2. Must have passed all verifications (identity, DBS, qualifications)
+3. Must be visible (`is_visible = true`)
+4. Must have availability on requested date/day
+5. Must not be on holiday
+6. For in-person: must be within travel distance
+7. Max advance booking: **14 days**
+
+---
+
+## Reference data endpoints
+
+These public endpoints return data needed to build search forms:
+
+### Subjects
+
+```
+GET /api/subjects
+GET /api/v1/subjects           (auth:api, supports level filtering)
+```
+
+### Subject groups
+
+```
+GET /api/subject-groups
+```
+
+Returns subjects organized by group: ACADEMIC, PROFESSIONAL, CUSTOM.
+
+### Subject levels
+
+```
+GET /api/v1/subject-levels     (auth:api)
+```
+
+### Exam boards
+
+```
+GET /api/v1/exam-boards        (auth:api)
+```
+
+### Countries
+
+```
+GET /api/countries
+```
+
+### Lesson pricing
+
+```
+GET /api/lesson-price
+```
+
+### Cancellation policies
+
+```
+GET /api/cancellation-policies
+```
+
+### Lesson locations
+
+```
+GET /api/lesson-locations
+GET /api/v1/lesson-locations    (auth:api)
+```
+
+Returns available lesson types: TUTORS_HOME (1), STUDENTS_HOME (2), ONLINE (3).

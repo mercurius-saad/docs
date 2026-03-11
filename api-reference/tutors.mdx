@@ -1,0 +1,191 @@
+---
+title: "Tutor Endpoints"
+description: "Tutor profiles, reviews, teaches, and verification"
+---
+
+## Current API
+
+### Get tutor (internal)
+
+```
+GET /api/tutors/{id}
+```
+
+**Auth:** `auth:api` + `internal`
+
+Returns full tutor data for admin use.
+
+---
+
+### Get tutor profile (public)
+
+```
+GET /api/tutors/{id}/profile
+```
+
+**Auth:** None
+
+Returns public-facing tutor profile via `TutorProfileTransformer`:
+- Basic info: name, username, joined date, profile picture, video, bio
+- Verification status, visibility
+- Location, education, languages
+- Tutoring/teaching experience
+- Overall rating, social links
+
+---
+
+### Get tutor reviews
+
+```
+GET /api/tutors/{id}/review
+```
+
+**Auth:** `web.api`
+
+Returns review summary via `TutorReviewService::getReviewSummary()` (cached until end of day).
+
+---
+
+### Submit tutor review
+
+```
+POST /api/tutors/{id}/review
+```
+
+**Auth:** `web.api`
+
+Creates a review with rating criteria and optional comment (max 300 chars).
+
+---
+
+## Legacy v1 API
+
+### Get tutor status
+
+```
+GET /api/v1/tutors/status
+```
+
+**Auth:** `auth:api`
+
+Returns current tutor's verification and profile status.
+
+---
+
+### Teaches (subjects taught)
+
+```
+GET    /api/v1/teaches
+POST   /api/v1/teaches
+PUT    /api/v1/teaches/{id}
+DELETE /api/v1/teaches/{id}
+```
+
+**Auth:** `auth:api`
+
+Manages tutor's taught subjects. Each `Teach` includes:
+- Subject
+- Subject levels (via `taught_subject_levels` pivot)
+- Exam boards (via `taught_exam_boards` pivot)
+- Lesson price (hourly rate)
+
+Additional actions:
+```
+PUT /api/v1/teaches/{id}/enable    — Enable teach
+PUT /api/v1/teaches/{id}/disable   — Disable teach
+```
+
+---
+
+### Current API teaches
+
+```
+GET /api/teaches
+```
+
+**Auth:** None — returns available teaches (public).
+
+---
+
+### Verification - Identity
+
+```
+POST /api/v1/verification/identity
+```
+
+**Auth:** `auth:api`
+
+Submits identity verification via Onfido/Yoti.
+
+---
+
+### Verification - Qualification
+
+```
+POST /api/v1/verification/qualification
+```
+
+**Auth:** `auth:api`
+
+Uploads qualification document.
+
+---
+
+### Verification - DBS
+
+```
+POST /api/v1/verification/dbs
+```
+
+**Auth:** `auth:api`
+
+Uploads DBS certificate document.
+
+---
+
+### Day availabilities
+
+```
+GET    /api/v1/day-availabilities
+POST   /api/v1/day-availabilities
+PUT    /api/v1/day-availabilities/{id}
+DELETE /api/v1/day-availabilities/{id}
+```
+
+**Auth:** `auth:api`
+
+Manages weekly availability schedule. Each day availability includes:
+- Day of week
+- Time slots (from/to)
+- Lesson types (online, tutor's home, student's home)
+- Optional subject/level/exam board filters
+
+---
+
+### Locations
+
+```
+GET    /api/v1/locations
+POST   /api/v1/locations
+PUT    /api/v1/locations/{id}
+DELETE /api/v1/locations/{id}
+```
+
+**Auth:** `auth:api`
+
+Manages tutor's location (postcode, lat/lng, max travel distance).
+
+---
+
+### Social links
+
+```
+GET    /api/social-links
+POST   /api/social-links
+PUT    /api/social-links/{id}
+DELETE /api/social-links/{id}
+```
+
+**Auth:** Mixed (some require `auth:api`).
+
+Manages social platform links (Twitter, LinkedIn, etc.) via `SocialPlatformLink` model.
