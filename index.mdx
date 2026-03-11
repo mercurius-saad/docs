@@ -1,29 +1,29 @@
 ---
-title: "TutorBloc"
+title: "Tutorbloc"
 description: "Internal developer documentation for the TutorBloc platform"
 ---
 
-TutorBloc is an online tutoring marketplace connecting students and parents with verified tutors in the UK. The platform consists of a **Laravel API** (backend) and a **Vue 2 SPA** (frontend client).
+Tutorbloc is an online tutoring marketplace connecting students and parents with verified tutors in the UK. The platform consists of a **Laravel API** (backend) and a **Vue 2 SPA** (frontend client).
 
 ## What the API does
 
 <CardGroup cols={2}>
-  <Card title="Tutor onboarding" icon="user-check">
+  <Card icon="user-check" title="Tutor onboarding">
     Registration, identity verification (Onfido/Yoti), DBS criminal checks, qualification uploads, multi-step profile completion
   </Card>
-  <Card title="Search & discovery" icon="magnifying-glass">
+  <Card icon="magnifying-glass" title="Search & discovery">
     Location-aware tutor search with subject, level, availability, distance, and lesson type filtering
   </Card>
-  <Card title="Booking & payments" icon="credit-card">
+  <Card icon="credit-card" title="Booking & payments">
     Lesson booking with Stripe payment processing, pre-authorization, 3D Secure, and automated payouts to tutors
   </Card>
-  <Card title="Lesson management" icon="calendar">
+  <Card icon="calendar" title="Lesson management">
     Scheduling, rescheduling (72hr advance notice), cancellation, refunds, and post-lesson review flows
   </Card>
-  <Card title="Video lessons" icon="video">
+  <Card icon="video" title="Video lessons">
     Zoom and Daily.co integration for online tutoring sessions
   </Card>
-  <Card title="Notifications" icon="bell">
+  <Card icon="bell" title="Notifications">
     Email (SMTP/Mailgun), push (APNS/FCM), and SMS (Twilio) notifications across all workflows
   </Card>
 </CardGroup>
@@ -32,34 +32,34 @@ TutorBloc is an online tutoring marketplace connecting students and parents with
 
 The platform has four user roles, defined in `app/Models/v1/Role.php`:
 
-| Role | ID | Description |
-|------|----|-------------|
-| **Tutor** | `1` | Creates profile, sets availability, teaches lessons, receives payouts |
-| **Student** | `2` | Searches tutors, books lessons, makes payments |
-| **Parent** | `3` | Books lessons on behalf of children, manages child profiles |
-| **Internal** | `200` | Admin access for internal team operations |
+| Role         | ID    | Description                                                           |
+| ------------ | ----- | --------------------------------------------------------------------- |
+| **Tutor**    | `1`   | Creates profile, sets availability, teaches lessons, receives payouts |
+| **Student**  | `2`   | Searches tutors, books lessons, makes payments                        |
+| **Parent**   | `3`   | Books lessons on behalf of children, manages child profiles           |
+| **Internal** | `200` | Admin access for internal team operations                             |
 
 There are also test roles: `TUTOR_TEST (100)` and `STUDENT_TEST (101)`.
 
 ## Quick links
 
 <CardGroup cols={2}>
-  <Card title="Local setup" icon="laptop" href="/getting-started/local-setup">
+  <Card icon="laptop" href="/getting-started/local-setup" title="Local setup">
     Get the API running on your machine
   </Card>
-  <Card title="Where to start reading" icon="book" href="/getting-started/where-to-start">
+  <Card icon="book" href="/getting-started/where-to-start" title="Where to start reading">
     The 5 files every new dev should read first
   </Card>
-  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+  <Card icon="sitemap" href="/architecture/overview" title="Architecture">
     How the codebase is structured
   </Card>
-  <Card title="Known gotchas" icon="triangle-exclamation" href="/devops/gotchas">
+  <Card icon="triangle-exclamation" href="/devops/gotchas" title="Known gotchas">
     Non-obvious things that will trip you up
   </Card>
-  <Card title="Frontend client" icon="browser" href="/frontend/overview">
+  <Card icon="browser" href="/frontend/overview" title="Frontend client">
     Vue 2 SPA — components, routes, and how it talks to the API
   </Card>
-  <Card title="API endpoints" icon="plug" href="/api-reference/introduction">
+  <Card icon="plug" href="/api-reference/introduction" title="API endpoints">
     Every backend endpoint with auth, params, and responses
   </Card>
 </CardGroup>
