@@ -189,5 +189,8 @@
   "description": "We give independent tutors modern tools to run their business so they can focus on one-to-one sessions.",
   "appearance": {
     "default": "system"
+  },
+  "seo": {
+    "noIndex": true
   }
 }
