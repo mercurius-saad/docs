@@ -25,8 +25,7 @@
             "pages": [
               "getting-started/local-setup",
               "getting-started/environment-variables",
-              "getting-started/where-to-start",
-              "development"
+              "getting-started/where-to-start"
             ]
           }
         ]
