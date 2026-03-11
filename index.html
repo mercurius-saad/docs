@@ -5,60 +5,117 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tutorbloc API Route Map</title>
 <style>
+  :root {
+    --bg-primary: #0f1117;
+    --bg-card: #161b22;
+    --bg-input: #0d1117;
+    --bg-hover: #1c2128;
+    --border: #30363d;
+    --border-route: #21262d;
+    --text-primary: #fff;
+    --text-secondary: #e1e4e8;
+    --text-muted: #8b949e;
+    --text-path: #c9d1d9;
+    --text-placeholder: #484f58;
+    --accent: #58a6ff;
+    --btn-active: #1f6feb;
+    --get-bg: #1a4731; --get-fg: #3fb950;
+    --post-bg: #3d2e00; --post-fg: #d29922;
+    --put-bg: #0c2d6b; --put-fg: #58a6ff;
+    --del-bg: #4a1219; --del-fg: #f85149;
+    --signed-bg: #2d1a4e; --signed-fg: #bc8cff;
+    --mw-bg: #30363d;
+  }
+  [data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-card: #f6f8fa;
+    --bg-input: #ffffff;
+    --bg-hover: #eef1f5;
+    --border: #d0d7de;
+    --border-route: #e8ebef;
+    --text-primary: #1f2328;
+    --text-secondary: #1f2328;
+    --text-muted: #656d76;
+    --text-path: #1f2328;
+    --text-placeholder: #a0a8b2;
+    --accent: #0969da;
+    --btn-active: #0969da;
+    --get-bg: #dafbe1; --get-fg: #116329;
+    --post-bg: #fff8c5; --post-fg: #7a4f01;
+    --put-bg: #ddf4ff; --put-fg: #0550ae;
+    --del-bg: #ffebe9; --del-fg: #82071e;
+    --signed-bg: #fbefff; --signed-fg: #6639ba;
+    --mw-bg: #e8ebef;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f1117; color: #e1e4e8; padding: 32px; }
-  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #fff; }
-  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-primary); color: var(--text-secondary); padding: 32px; transition: background 0.2s, color 0.2s; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+  .header-text { flex: 1; }
+  .theme-toggle { display: flex; gap: 4px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+  .theme-btn { padding: 6px 10px; border-radius: 6px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; transition: all 0.2s; }
+  .theme-btn.active { background: var(--btn-active); color: #fff; }
+  .theme-btn:hover:not(.active) { color: var(--text-primary); }
   .legend { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8b949e; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
   .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
   .filters { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
-  .filter-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; color: #c9d1d9; cursor: pointer; font-size: 13px; transition: all 0.2s; }
-  .filter-btn:hover, .filter-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .filter-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-path); cursor: pointer; font-size: 13px; transition: all 0.2s; }
+  .filter-btn:hover, .filter-btn.active { background: var(--btn-active); border-color: var(--btn-active); color: #fff; }
   .stats { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-  .stat { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; }
-  .stat-num { font-size: 24px; font-weight: 700; color: #58a6ff; }
-  .stat-label { font-size: 12px; color: #8b949e; }
+  .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .stat-num { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 12px; color: var(--text-muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
-  .group { background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
-  .group:hover { border-color: #58a6ff; }
-  .group-header { padding: 14px 16px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-  .group-title { font-size: 15px; font-weight: 600; color: #fff; }
+  .group { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .group:hover { border-color: var(--accent); }
+  .group-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .group-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
   .group-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-  .group-controller { font-size: 12px; color: #8b949e; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .group-controller { font-size: 12px; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; }
   .group-body { padding: 0; }
-  .route { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid #21262d; gap: 10px; font-size: 13px; transition: background 0.15s; }
+  .route { display: flex; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border-route); gap: 10px; font-size: 13px; transition: background 0.15s; }
   .route:last-child { border-bottom: none; }
-  .route:hover { background: #1c2128; }
+  .route:hover { background: var(--bg-hover); }
   .method { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; min-width: 52px; text-align: center; font-family: 'SF Mono', 'Fira Code', monospace; }
-  .method-GET { background: #1a4731; color: #3fb950; }
-  .method-POST { background: #3d2e00; color: #d29922; }
-  .method-PUT { background: #0c2d6b; color: #58a6ff; }
-  .method-DELETE { background: #4a1219; color: #f85149; }
-  .path { font-family: 'SF Mono', 'Fira Code', monospace; color: #c9d1d9; flex: 1; }
-  .action { font-size: 12px; color: #8b949e; font-family: 'SF Mono', 'Fira Code', monospace; text-align: right; white-space: nowrap; }
+  .method-GET { background: var(--get-bg); color: var(--get-fg); }
+  .method-POST { background: var(--post-bg); color: var(--post-fg); }
+  .method-PUT { background: var(--put-bg); color: var(--put-fg); }
+  .method-DELETE { background: var(--del-bg); color: var(--del-fg); }
+  .path { font-family: 'SF Mono', 'Fira Code', monospace; color: var(--text-path); flex: 1; }
+  .action { font-size: 12px; color: var(--text-muted); font-family: 'SF Mono', 'Fira Code', monospace; text-align: right; white-space: nowrap; }
   .middleware-tags { display: flex; gap: 4px; flex-wrap: wrap; }
-  .mw-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #30363d; color: #8b949e; }
-  .mw-tag.auth { background: #1a3a2a; color: #3fb950; }
-  .mw-tag.public { background: #3d2e00; color: #d29922; }
-  .mw-tag.internal { background: #4a1219; color: #f85149; }
-  .mw-tag.web-api { background: #0c2d6b; color: #58a6ff; }
-  .mw-tag.signed { background: #2d1a4e; color: #bc8cff; }
+  .mw-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--mw-bg); color: var(--text-muted); }
+  .mw-tag.auth { background: var(--get-bg); color: var(--get-fg); }
+  .mw-tag.public { background: var(--post-bg); color: var(--post-fg); }
+  .mw-tag.internal { background: var(--del-bg); color: var(--del-fg); }
+  .mw-tag.web-api { background: var(--put-bg); color: var(--put-fg); }
+  .mw-tag.signed { background: var(--signed-bg); color: var(--signed-fg); }
   .version-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-  .version-current { background: #1a4731; color: #3fb950; }
-  .version-legacy { background: #3d2e00; color: #d29922; }
-  .version-web { background: #0c2d6b; color: #58a6ff; }
+  .version-current { background: var(--get-bg); color: var(--get-fg); }
+  .version-legacy { background: var(--post-bg); color: var(--post-fg); }
+  .version-web { background: var(--put-bg); color: var(--put-fg); }
   .hidden { display: none !important; }
-  .search-box { padding: 8px 14px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; font-size: 14px; width: 300px; margin-bottom: 24px; outline: none; }
-  .search-box:focus { border-color: #58a6ff; }
-  .search-box::placeholder { color: #484f58; }
+  .search-box { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-secondary); font-size: 14px; width: 300px; margin-bottom: 24px; outline: none; }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-placeholder); }
   .toolbar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
 </style>
 </head>
 <body>
 
-<h1>Tutorbloc API Route Map</h1>
-<p class="subtitle">Interactive diagram of all API routes, controllers, and middleware</p>
+<div class="header-row">
+  <div class="header-text">
+    <h1>Tutorbloc API Route Map</h1>
+    <p class="subtitle">Interactive diagram of all API routes, controllers, and middleware</p>
+  </div>
+  <div class="theme-toggle">
+    <button class="theme-btn" onclick="setTheme('light')" title="Light">&#9788;</button>
+    <button class="theme-btn" onclick="setTheme('system')" title="System">&#9680;</button>
+    <button class="theme-btn" onclick="setTheme('dark')" title="Dark">&#9790;</button>
+  </div>
+</div>
 
 <div class="stats" id="stats">
   <div class="stat"><div class="stat-num" id="total-routes">0</div><div class="stat-label">Total Routes</div></div>
@@ -707,6 +764,37 @@ function setFilter(filter) {
 }
 
 function filterRoutes() { render(); }
+
+function setTheme(mode) {
+  localStorage.setItem('theme', mode);
+  applyTheme(mode);
+}
+
+function applyTheme(mode) {
+  let isDark;
+  if (mode === 'system') {
+    isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } else {
+    isDark = mode === 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+  const labels = { light: '\u2604', system: '\u2680', dark: '\u263E' };
+  const titles = { light: 'Light', system: 'System', dark: 'Dark' };
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    if (btn.title.toLowerCase() === mode) btn.classList.add('active');
+  });
+}
+
+// Init theme from stored preference or default to system
+const savedTheme = localStorage.getItem('theme') || 'system';
+applyTheme(savedTheme);
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  const current = localStorage.getItem('theme') || 'system';
+  if (current === 'system') applyTheme('system');
+});
 
 render();
 </script>
