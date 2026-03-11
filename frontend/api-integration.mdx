@@ -1,0 +1,241 @@
+---
+title: "API Integration"
+description: "How the client communicates with the backend, auth handling, and data patterns"
+---
+
+## Two HTTP patterns
+
+The client uses **two different HTTP approaches** — both coexist in the codebase:
+
+### 1. Axios (configured in main.js)
+
+```javascript
+// Available as this.$http in all components
+const base = axios.create({
+  baseURL: process.env.VUE_APP_API_URL,  // e.g., "https://tutorbloc.com/api"
+  auth: {
+    username: process.env.VUE_APP_API_USERNAME,
+    password: process.env.VUE_APP_API_PASSWORD
+  }
+});
+Vue.prototype.$http = base;
+```
+
+Used in some components but **not the primary pattern**.
+
+### 2. XMLHttpRequest (Promise-wrapped)
+
+The dominant pattern across the codebase:
+
+```javascript
+var request = new XMLHttpRequest();
+request.responseType = 'json';
+request.withCredentials = true;
+
+return new Promise((resolve, reject) => {
+  request.onreadystatechange = function() {
+    if (request.readyState !== 4) return;
+    if (request.status >= 200 && request.status < 300) {
+      resolve(request);
+    } else {
+      reject(request);
+    }
+  };
+  request.open("GET", `${apiBaseUrl}/endpoint`);
+  request.setRequestHeader("Content-Type", "application/json");
+  request.setRequestHeader("Accept", "application/json");
+  request.setRequestHeader("sessionKey", this.session_key);
+  request.send();
+});
+```
+
+<Note>
+There's no centralized API service layer. Each component defines its own API calls inline in its `methods` block. The `apiFunctions.js` file has a few shared helpers but most calls are component-local.
+</Note>
+
+## Authentication
+
+### How it works
+
+1. User logs in via `POST /auth/login` (or registers via `POST /auth/register`)
+2. Backend returns a `session_key` token
+3. Client stores it in component state (passed via props) or `sessionStorage`
+4. Subsequent requests include `sessionKey` header
+
+```javascript
+request.setRequestHeader("sessionKey", this.session_key);
+// OR
+request.setRequestHeader("sessionKey", this.user.account.session_key);
+```
+
+### Storage
+
+- **Component state** — `session_key` passed through props between components
+- **sessionStorage** — used in Dashboard (`sessionStorage.setItem('session_key', ...)`)
+- **No localStorage** — session doesn't persist across browser close
+- **No refresh token mechanism** — if the token expires, user must re-login
+
+<Warning>
+There's no global auth store or interceptor. If a request returns 401, handling is component-specific. There's no automatic redirect to login on auth failure.
+</Warning>
+
+## API helper functions
+
+**File:** `src/assets/scripts/apiFunctions.js`
+
+| Function | Endpoint | Purpose |
+|----------|----------|---------|
+| `getTutorDetails(id)` | `GET /tutors/{id}/profile` | Fetch public tutor profile |
+| `sendCode(number, code)` | `GET /mobile-numbers/code` | Send SMS verification code |
+| `getAddresses(postcode)` | `GET /addresses/search` | Search UK addresses by postcode |
+| `getAddressesWithCountry(postcode, code)` | `GET /addresses/search` | Address search with country filter |
+| `getActionEmail(actionID, lesson)` | — | Extract email from lesson data |
+| `getActionName(actionID, lesson)` | — | Extract name from lesson data |
+| `getActionFullName(actionID, lesson)` | — | Extract full name from lesson data |
+
+## Complete API endpoint map
+
+Every API endpoint the client calls, mapped to the backend:
+
+### Authentication
+
+| Client action | Method | Endpoint |
+|--------------|--------|----------|
+| Login | POST | `/auth/login` |
+| Register tutor | POST | `/auth/register` |
+| Forgot password | POST | `/auth/forgot` |
+| Dashboard login | POST | `/v1/auth/login` |
+| Resend verification | GET | `/v1/auth/email/verify/resend` |
+
+### Users & profiles
+
+| Client action | Method | Endpoint |
+|--------------|--------|----------|
+| Validate email | GET | `/users/{email}/validate` |
+| Validate username | GET | `/users/{username}/validate` |
+| Get user profile | GET | `/users/{id}` |
+| Get tutor profile | GET | `/tutors/{id}/profile` |
+| Search tutor by email | GET | `/tutors?email={email}` |
+| Get self (dashboard) | GET | `/v1/users/self` |
+
+### Booking & lessons
+
+| Client action | Method | Endpoint |
+|--------------|--------|----------|
+| Get availability | GET | `/availabilites?duration=&lesson_type=&teach_id=&dates[]=` |
+| Get lesson locations | GET | `/lesson-locations?tutor_id={id}` |
+| Get lesson price | GET | `/lesson-price?teach_id=&duration=` |
+| Get price with coupon | GET | `/lesson-price?teach_id=&duration=&coupon_uid=` |
+| Create booking | POST | `/bookings` |
+| Get booking | GET | `/bookings/{id}?secret={secret}` |
+| Get own bookings | GET | `/bookings/self?limit=1` |
+| Update booking | PUT | `/bookings/{id}?secret={secret}` |
+| Cancel booking | PUT | `/bookings/{id}/cancel?secret={secret}` |
+
+### Payments
+
+| Client action | Method | Endpoint |
+|--------------|--------|----------|
+| Process payment | POST | `/payments/pay` |
+| Check payment status | GET | `/payments/{secret}/status` |
+| Add card | POST | `/cards` |
+| Validate card | POST | `/cards/validate` |
+| List cards | GET | `/cards` |
+| Validate coupon | GET | `/coupons/{code}/validate` |
+
+### Other
+
+| Client action | Method | Endpoint |
+|--------------|--------|----------|
+| Get teaches | GET | `/teaches?tutor_id={id}` |
+| Get countries | GET | `/countries` |
+| Upload file | POST | `/files` |
+| Get children | GET | `/children` |
+| Add child | POST | `/children` |
+| Create address | POST | `/addresses` |
+| Search addresses | GET | `/addresses/search?post_code={postcode}` |
+| Send SMS code | GET | `/mobile-numbers/code?mobile_number={number}` |
+| Verify SMS code | GET | `/mobile-numbers/verify?mobile_number={number}&code={code}` |
+| Subscribe | POST | `/subscriptions` |
+
+## Data structures
+
+No TypeScript — these are the implicit shapes used across the codebase:
+
+### User object
+
+```javascript
+{
+  id: number,
+  firstName: string,
+  lastName: string,
+  email: string,
+  role_type: number,          // 1=tutor, 2=student, 3=parent
+  session_key: string,
+  teaches: [{
+    id: number,
+    subject: { title: string },
+    subject_level: { title: string },
+    exam_boards: [{ id, title }],
+    hourly_rate: number
+  }],
+  profile_picture_url: string,
+  bio: string,
+  education: { university, course, grade, start_date, end_date },
+  languages: [string],
+  rating: { average_rating: number, number_of_reviews: number },
+  tutoring_experience: number,  // months
+  video_url: string,
+  current_location: string
+}
+```
+
+### Registration payload
+
+```javascript
+{
+  username, email, password,
+  firstname, lastname,
+  role_type: 1,               // Always tutor for registration
+  country_id, dob,
+  payment_card: { number, exp_month, exp_year, cvc },
+  mobile_number: { country_code, mobile_number },
+  dbs: { certificate_number, date_of_issue, file_id },
+  address: { line_1, line_2, line_3, post_code, country_name, lat, lng }
+}
+```
+
+### Booking payload
+
+```javascript
+{
+  tutor_id, teach_id,
+  location: string,           // "online" | "tutor" | "student"
+  duration: number,           // minutes (15-120)
+  date: string,               // YYYY-MM-DD
+  start: string, end: string, // HH:MM
+  message: string,
+  // For in-person:
+  number, street, town, postcode, lat, lng,
+  // Optional:
+  file: { id, content }
+}
+```
+
+## Error handling
+
+No global error interceptor. Each component handles errors locally:
+
+```javascript
+this.apiCall()
+  .then(response => { /* handle success */ })
+  .catch(err => {
+    this.error = err.response?.title || 'Something went wrong';
+    this.validInput = false;
+  });
+```
+
+Specific error handling examples:
+- **Login**: 404 = user not found, 401 = invalid credentials
+- **Payment**: insufficient funds, 3D Secure failures with specific messages
+- **Registration**: duplicate email/username with API error text display

@@ -1,0 +1,153 @@
+---
+title: "Routes & Navigation"
+description: "All client routes, navigation structure, and SEO configuration"
+---
+
+## Router configuration
+
+**File:** `src/router.js`
+
+- **Mode:** History (clean URLs, requires server-side fallback)
+- **Code splitting:** Every route is lazy-loaded with Webpack chunk names
+- **Scroll behavior:** Smooth scroll to hash anchors, remembers saved position
+
+## Route metadata
+
+Every route has two metadata flags:
+
+| Flag | Type | Purpose |
+|------|------|---------|
+| `showHF` | boolean | Show the marketing Header/Footer chrome |
+| `noindex` | boolean | Inject `<meta name="robots" content="noindex">` |
+
+## All routes
+
+### Marketing pages (no Header/Footer)
+
+| Path | View | Description |
+|------|------|-------------|
+| `/` | `Home.vue` | Landing page |
+| `/pricing` | `Pricing.vue` | Pricing page |
+| `/about` | `About.vue` | About page |
+| `/apply` or `/request` | `Request.vue` | Tutor application form (324KB — largest view) |
+| `/auth` | `Auth.vue` | Authentication entry |
+| `/account-verified` | `AccountVerified.vue` | Post-verification page |
+
+### Marketing pages (with Header/Footer)
+
+| Path | View | noindex |
+|------|------|---------|
+| `/faqs` | `faq.vue` | Yes |
+| `/library` | `Library.vue` | Yes |
+| `/upgrade` | `Upgrade.vue` | Yes |
+| `/Links` | `Links.vue` | Yes |
+| `/legal/terms` | `Legal/Terms.vue` | Yes |
+| `/legal/privacy` | `Legal/Privacy.vue` | Yes |
+| `/blog` | `Blog/Blog.vue` | No |
+| `/blog/how-to-start-a-tutoring-business` | `Blog/HowToStart.vue` | No |
+| `/blog/updates-to-our-pricing-and-product-strategy` | `Blog/PricingUpdate.vue` | No |
+| `/features/build` | `Features/Build.vue` | No |
+| `/features/earn` | `Features/Earn.vue` | No |
+| `/features/teach` | `Features/Teach.vue` | No |
+
+### Registration flow
+
+| Path | View | Description |
+|------|------|-------------|
+| `/register` | `Register.vue` | Multi-step registration orchestrator |
+| `/register/success` | `Register/Success.vue` | Registration success |
+| `/register/success-ios` | `Register/Success-iOS.vue` | iOS-specific success |
+| `/register/waitlist` | `Register/Android.vue` | Android waitlist |
+
+### Tutor profile & account (shareable links)
+
+All under `/s/:id` — the `:id` is the tutor's username or ID.
+
+| Path | View | Description |
+|------|------|-------------|
+| `/s/:id` | `User/Profile.vue` | Public tutor profile |
+| `/s/:id/calendar` | `User/Calendar.vue` | Booking calendar |
+| `/s/:id/booking` | `User/Booking.vue` | Booking confirmation |
+| `/s/:id/mobile` | `User/Mobile.vue` | Mobile account menu |
+| `/s/:id/login` | `User/Login.vue` | Login/password |
+| `/s/:id/details` | `User/Details.vue` | Profile details |
+| `/s/:id/email` | `User/Email.vue` | Email management |
+| `/s/:id/message` | `User/Message.vue` | Message preferences |
+| `/s/:id/payment` | `User/Payment.vue` | Payment methods |
+
+### Booking management
+
+| Path | View | Description |
+|------|------|-------------|
+| `/booking/:id/calendar` | `User/Actions/Calendar.vue` | Book a lesson |
+| `/booking/:id/update` | `User/Actions/Reschedule/Update.vue` | Reschedule overview |
+| `/booking/:id/update/reschedule` | `Reschedule/UpdateDate.vue` | Pick new date |
+| `/booking/:id/update/reschedule/submitted` | `Reschedule/UpdateComplete.vue` | Reschedule confirmation |
+| `/booking/:id/update/cancel` | `Reschedule/Cancel.vue` | Cancel lesson |
+| `/booking/:id/update/cancel/submitted` | `Reschedule/CancelComplete.vue` | Cancellation confirmation |
+| `/booking/:id/status` | `Reschedule/Status.vue` | Reschedule/cancel status |
+
+### Dashboard (admin)
+
+| Path | View | Description |
+|------|------|-------------|
+| `/dashboard` | `Dashboard.vue` | Dashboard login |
+| `/dashboard/home` | `DashboardHome.vue` | Dashboard home (tutor search) |
+
+### Catch-all
+
+| Path | View |
+|------|------|
+| `*` | Redirects to `Home.vue` (404 fallback) |
+
+## SEO configuration
+
+### robots.txt
+
+```
+User-agent: *
+Disallow: /faqs
+Disallow: /library
+Disallow: /upgrade
+Disallow: /legal/terms
+Disallow: /legal/privacy
+Disallow: /s/
+Allow: /
+
+Sitemap: https://tutorbloc.com/sitemap.xml
+```
+
+<Note>
+All `/s/` paths (tutor profiles, user accounts) are blocked from crawling. Marketing pages are open.
+</Note>
+
+### sitemap.xml
+
+16 URLs indexed with priority weighting:
+
+| Priority | Pages |
+|----------|-------|
+| 1.0 | Homepage |
+| 0.9 | Features (build, teach, earn), pricing |
+| 0.8 | Register, apply |
+| 0.7 | About, links |
+| 0.5 | Blog posts |
+
+### Dynamic noindex
+
+The router's `beforeEach` guard injects/removes `<meta name="robots" content="noindex">` based on the route's `noindex` metadata flag. Pages like FAQs, Library, Legal pages, and Links are noindexed.
+
+## Navigation guard
+
+```javascript
+router.beforeEach((to, from, next) => {
+  if (to.meta.noindex) {
+    // Add <meta name="robots" content="noindex">
+  } else {
+    // Remove noindex meta if present
+  }
+  next();
+});
+```
+
+No auth guards on routes — authentication is handled at the component level when making API calls.

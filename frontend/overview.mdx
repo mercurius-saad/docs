@@ -1,0 +1,77 @@
+---
+title: "Client Overview"
+description: "The tutorbloc-client Vue 2 SPA — tech stack, architecture, and how it fits together"
+---
+
+## What it is
+
+The `tutorbloc-client` is a **Vue 2 Single Page Application** that serves the public-facing website, tutor registration, student booking flows, and user profile management. It communicates with the `tutorbloc-api` backend via REST.
+
+## Tech stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Framework | Vue.js | 2.6.10 |
+| Routing | Vue Router | 3.0.3 (history mode) |
+| HTTP client | Axios + XMLHttpRequest | 0.19.0 |
+| CSS framework | Bootstrap | 4.3.1 |
+| CSS preprocessor | SCSS/Sass | 1.22.7 |
+| Build tool | Vue CLI | 3.9 (Webpack) |
+| Linting | ESLint | 5.16 + vue plugin |
+| Transpiler | Babel | @vue/app preset |
+| Image optimization | imagemin-webpack-plugin | 2.4.2 |
+| Production server | Nginx + Docker | Alpine |
+| Node version (build) | Node.js | 10 |
+
+<Warning>
+**No TypeScript** — the entire codebase is plain JavaScript. Data structures are implicit through usage, not typed interfaces.
+</Warning>
+
+## What it does NOT have
+
+- No Vuex or any state management library — component-level state only
+- No test framework (no Jest, Cypress, or Playwright)
+- No CI/CD pipeline — manual Docker builds
+- No TypeScript
+- No external form library — manual validation in components
+- No external design system (no shadcn, Radix, MUI, Tailwind)
+
+## Key characteristics
+
+- **55+ routes** with code-splitting via Webpack dynamic imports
+- **~53 reusable components** + **~27 page views**
+- **Multi-step registration flow** (6 steps for tutors)
+- **Session-based auth** via `sessionKey` header (stored in sessionStorage)
+- **Mixed API patterns** — both Axios and raw XMLHttpRequest used
+- **Responsive design** — custom CSS breakpoints at 768px (mobile) and 1000px (desktop)
+
+## Environment URLs
+
+| Environment | Client URL | API URL |
+|-------------|-----------|---------|
+| Development | `localhost:8080` | `http://localhost:9000` |
+| Testing | `www.testing.web.tutorbloc.com` | `https://www.testing.web.tutorbloc.com/api` |
+| Staging | `staging.web.tutorbloc.com` | `https://staging.web.tutorbloc.com/api` |
+| Production | `tutorbloc.com` | `https://tutorbloc.com/api` |
+
+## Analytics & tracking
+
+| Service | ID | Purpose |
+|---------|-----|---------|
+| Google Tag Manager | `GTM-WLHL7KM` | Tag management |
+| Crisp Chat | `94b4b159-cf02-42a3-b30f-4b545f024fb2` | Support chat bot |
+| ActiveCampaign | Account `610405066` | CRM / email tracking |
+| Google Analytics | via GTM | Conversion tracking (purchase events on booking) |
+
+## Color palette (CSS variables)
+
+```css
+--wf-dark-blue: #2e3b51
+--wf-light-blue: #3963a4
+--wf-steel-blue: #bacae7
+--wf-beige: #fcecd7
+--wf-grey: #f1f1f1
+--wf-mist: #ebebeb
+--wf-red: #c16673
+--wf-green: #698f73
+```

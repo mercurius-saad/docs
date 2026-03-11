@@ -107,6 +107,22 @@
         ]
       },
       {
+        "tab": "Frontend",
+        "groups": [
+          {
+            "group": "Client app",
+            "pages": [
+              "frontend/overview",
+              "frontend/project-structure",
+              "frontend/components",
+              "frontend/api-integration",
+              "frontend/routes",
+              "frontend/deployment"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "DevOps",
         "groups": [
           {

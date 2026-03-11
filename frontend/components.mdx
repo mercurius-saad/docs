@@ -1,0 +1,169 @@
+---
+title: "Components & UI"
+description: "Component architecture, design patterns, and UI conventions"
+---
+
+## Component organization
+
+Components are organized into four groups:
+
+| Directory | Count | Purpose |
+|-----------|-------|---------|
+| `components/header/` | 2 | Site header and discount banner |
+| `components/footer/` | 1 | Site footer |
+| `components/Register/` | 15 | Multi-step tutor registration flow |
+| `components/User/` | 24 | User account, booking, and profile components |
+| `components/WF/` | 12 | Website Framework — marketing pages |
+
+Page-level views live in `views/` (27 files).
+
+## Styling approach
+
+No external design system. Custom CSS with:
+
+- **CSS variables** for colors (see [Overview](/frontend/overview))
+- **Utility classes** in `defaultStyle.css` (flex, grid, margin/padding, font)
+- **Scoped styles** in each `.vue` file's `<style scoped>` section
+- **Bootstrap 4.3** for grid and responsive basics
+- **SCSS/Sass** preprocessor
+- **Custom fonts**: Inter (8 weights), Hanson Bold, Autography, Inconsolata, DepartureMono
+
+### Key CSS classes
+
+| Class | Purpose |
+|-------|---------|
+| `.registerButton` | Primary action button |
+| `.userButton` | User-area button |
+| `.whiteButton` | Secondary/outline button |
+| `.blueButton` | Blue accent button |
+| `.disabledInput` | Disabled state styling |
+| `.userPopup` | Modal/popup overlay |
+| `.registerInput` | Form input styling |
+| `.mobileHide` | Hidden on mobile (<768px) |
+| `.desktopHide` | Hidden on desktop |
+
+### Responsive breakpoints
+
+| Breakpoint | Usage |
+|-----------|-------|
+| `768px` | Mobile/tablet boundary (also used by `isMobile()` helper) |
+| `1000px` | Small desktop (also used by `isSfFullSize()` helper) |
+| `1919px` | Large desktop scaling |
+
+## Registration flow components
+
+The registration is a 6-step wizard orchestrated by `views/Register.vue`:
+
+<Steps>
+<Step title="Device.vue">
+iOS or Android selection. Android users redirected to Apply page.
+</Step>
+<Step title="Username.vue">
+Username input (5-20 chars, starts with letter, alphanumeric). Real-time availability check via API. Country code selector (`NumberCode.vue`) + phone number input.
+</Step>
+<Step title="Identity.vue">
+First name, last name, date of birth (day/month/year as separate inputs). Age validation (must be 18+). Auto-focus progression through fields.
+</Step>
+<Step title="Email.vue">
+Email with real-time uniqueness check. Password with strength validation (min 8 chars, 1 uppercase, 1 special). Show/hide toggle. `EmailVerify.vue` confirmation popup.
+</Step>
+<Step title="Address.vue">
+Country dropdown → postcode input → real-time address search → `AddressPicker.vue` for manual entry. Lat/lng captured.
+</Step>
+<Step title="Payment.vue">
+Card number (12-19 digits), expiry (MM/YY with auto-formatting), CVC (3-4 digits). Input masking, auto-progression between fields. Test card detection.
+</Step>
+</Steps>
+
+Step completion emits `confirm-step(stepNumber, data)` to the parent `Register.vue`.
+
+## User account components
+
+### Pickers (modal selection components)
+
+| Component | What it selects | API calls |
+|-----------|----------------|-----------|
+| `ExamPicker.vue` | Exam board (radio selection) | None (data via props) |
+| `StudentPicker.vue` | Child/learner (select or create new) | `GET /children`, `POST /children` |
+| `CardPicker.vue` | Payment card (select or add new) | `GET /cards`, `POST /cards` |
+| `AddressPicker.vue` | Address (postcode search or manual entry) | `GET /addresses/search` |
+| `NumberCode.vue` | Country phone code (searchable list) | None (static data) |
+
+### Verification components
+
+| Component | Purpose |
+|-----------|---------|
+| `EmailVerify.vue` | Email confirmation popup (yes/no) |
+| `EmailValidate.vue` | Email validation display |
+| `NumberVerify.vue` | SMS code entry (6 digits, auto-submit) |
+| `ForgotPassword.vue` | Password reset email form |
+
+### UI utilities
+
+| Component | Purpose |
+|-----------|---------|
+| `Loading.vue` | Full-screen white overlay with 3 animated circles |
+| `LoadingSmall.vue` | Semi-transparent overlay loader |
+| `LoadingCircle.vue` | Single animated circle (used by Loading/LoadingSmall) |
+| `Hr.vue` | Horizontal rule divider |
+| `Divider.vue` | Vertical divider (converts to horizontal on mobile) |
+| `InfoPopup.vue` | Generic modal with title, text, optional action button |
+| `SimpleText.vue` | Styled text wrapper |
+| `Powered.vue` | Footer branding with live London time (updates every 2.5s) |
+| `Video.vue` | HTML5 video player with poster, fullscreen support |
+| `Profile.vue` | Tutor profile sidebar card (photo, name, location, subject, price) |
+| `DiscountCode.vue` | Coupon code entry with validation and price recalculation |
+
+## Form handling pattern
+
+No form library. All forms use:
+
+```javascript
+// Local state
+data() {
+  return {
+    email: '',
+    error: '',
+    validInput: false
+  }
+}
+
+// Validation in methods
+methods: {
+  validate() {
+    return this.email.length > 0 && this.validInput;
+  }
+}
+
+// Template binding
+<input v-model="email" @keyup.enter="submit" />
+<button :disabled="!validate()" :class="{ disabledInput: !validate() }">Submit</button>
+<span class="color-red" v-if="error">{{ error }}</span>
+```
+
+### Custom directives
+
+| Directive | Purpose |
+|-----------|---------|
+| `v-lowercase` | Forces input to lowercase |
+| `v-uppercase` | Forces input to uppercase |
+
+### Input validation helpers (from `helper.js`)
+
+| Function | Purpose |
+|----------|---------|
+| `stopNonNumbers(e)` | Blocks non-numeric keyboard input |
+| `stopNonNumbersOrLetters(e)` | Blocks non-alphanumeric input |
+| `isNonNumber(e)` | Returns true if key is non-numeric |
+| `getAge(date)` | Calculates age from DOB |
+
+## Component communication
+
+| Pattern | How it works |
+|---------|-------------|
+| Parent → Child | Props (e.g., `cardClass`, `session_key`, `user`, `boards`) |
+| Child → Parent | `$emit('confirm-step', stepNumber, data)`, `$emit('confirm-exam', id)`, etc. |
+| Global state | None — no Vuex. Data flows via props and route params |
+| Route data | `this.$route.params.id`, `this.$route.query.subject` |
+| Navigation | `this.$router.push()` |
+| Crisp chat | `$crisp.push(['do', 'chat:open'])` — called from multiple components |

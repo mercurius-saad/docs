@@ -1,0 +1,138 @@
+---
+title: "Project Structure"
+description: "Directory layout, configuration files, and how the client codebase is organized"
+---
+
+## Directory layout
+
+```
+tutorbloc-client/
+├── src/
+│   ├── App.vue                    # Root component (conditional Header/Footer)
+│   ├── main.js                    # Entry point (Axios config, Vue init)
+│   ├── router.js                  # Vue Router (55+ routes, lazy-loaded)
+│   ├── assets/
+│   │   ├── app.scss               # Main SCSS entry
+│   │   ├── stylesheets/
+│   │   │   ├── defaultStyle.css   # Core utility classes & CSS variables
+│   │   │   ├── registerFlow.css   # Registration-specific styles
+│   │   │   └── wb.css             # Website/branding styles (129KB)
+│   │   ├── scripts/
+│   │   │   ├── apiFunctions.js    # API helper functions (7 exports)
+│   │   │   ├── helper.js          # Utility functions (29 exports)
+│   │   │   ├── libraryData.js     # Library page data
+│   │   │   └── linksData.js       # Links page data
+│   │   ├── fonts/                 # 24 custom fonts (Inter, Hanson, Autography, etc.)
+│   │   ├── images/                # Feature images organized by section
+│   │   └── pdf/                   # PDF documents
+│   ├── components/                # 53 reusable components
+│   │   ├── header/                # Header, DiscountCode
+│   │   ├── footer/                # Footer
+│   │   ├── Register/              # 15 registration flow components
+│   │   ├── User/                  # 24 user account components
+│   │   └── WF/                    # 12 Website Framework (marketing) components
+│   └── views/                     # 27 page views
+│       ├── Home.vue, About.vue, Pricing.vue, etc.
+│       ├── Register/              # Registration success pages
+│       ├── Blog/                  # Blog pages
+│       ├── Features/              # Feature pages (Build, Earn, Teach)
+│       ├── Legal/                 # Terms, Privacy
+│       └── User/                  # User dashboard, profile, booking, actions
+├── public/
+│   ├── index.html                 # HTML template (GTM, Crisp, OG tags)
+│   ├── robots.txt                 # SEO robots
+│   ├── sitemap.xml                # XML sitemap (16 URLs)
+│   └── .well-known/               # Apple Pay domain verification
+├── dist/                          # Compiled output (40 CSS + 44 JS chunks)
+├── Dockerfile                     # Multi-stage build (Node 10 → Nginx)
+├── nginx-*.conf                   # 6 environment-specific Nginx configs
+├── vue.config.js                  # Webpack config
+├── .eslintrc.js                   # ESLint config
+├── .env*                          # 5 environment files
+└── package.json
+```
+
+## Configuration files
+
+### vue.config.js
+
+```javascript
+// Key settings:
+productionSourceMap: false          // No source maps in production
+devServer: { disableHostCheck: true }
+// Image optimization via ImageminPlugin (JPEG/PNG/GIF/SVG)
+// PDF file handling via file-loader → /pdf directory
+```
+
+### .eslintrc.js
+
+- Extends `plugin:vue/essential` + `eslint:recommended`
+- Parser: `babel-eslint`
+- Production: `console` and `debugger` forbidden
+- Development: `console` and `debugger` allowed
+
+### babel.config.js
+
+Uses `@vue/app` preset (Vue CLI's Babel preset with core-js polyfills).
+
+### postcss.config.js
+
+Autoprefixer plugin only.
+
+### .browserslistrc
+
+```
+> 1%
+last 2 versions
+```
+
+## Entry point — main.js
+
+**File:** `src/main.js`
+
+Sets up:
+1. Axios instance with env-based `baseURL` and HTTP Basic Auth credentials
+2. Mounts Axios as `Vue.prototype.$http` (available as `this.$http` in all components)
+3. Router navigation guard for `noindex` meta tag injection
+4. Creates Vue app with router
+
+```javascript
+const base = axios.create({
+  baseURL: process.env.VUE_APP_API_URL,
+  auth: {
+    username: process.env.VUE_APP_API_USERNAME,
+    password: process.env.VUE_APP_API_PASSWORD
+  }
+});
+Vue.prototype.$http = base;
+```
+
+## Root component — App.vue
+
+Conditionally renders Header, Footer, and DiscountCode based on route metadata:
+
+```html
+<Header v-if="$route.meta.showHF" />
+<DiscountCode v-if="$route.meta.showHF" />
+<router-view />
+<Footer v-if="$route.meta.showHF" />
+```
+
+Routes with `showHF: true` get the marketing site chrome. Routes like `/register`, `/s/:id`, and `/booking/:id` render without it.
+
+## Environment variables
+
+All prefixed with `VUE_APP_` (Vue CLI requirement):
+
+| Variable | Purpose |
+|----------|---------|
+| `VUE_APP_TITLE` | Browser tab title |
+| `VUE_APP_API_URL` | Backend API base URL |
+| `VUE_APP_API_PROXY_END_POINT` | Proxy endpoint |
+| `VUE_APP_API_PROXY_PORT` | Proxy port |
+| `VUE_APP_API_USERNAME` | HTTP Basic Auth username |
+| `VUE_APP_API_PASSWORD` | HTTP Basic Auth password |
+
+<Warning>
+The HTTP Basic Auth credentials (`janedoe` / `IfPeopleAreTalkingBehindYourBackJustFart`) are the same across all environments and are committed to the `.env` files in the repo. **Confirm with team if these are still in use or vestigial.**
+</Warning>

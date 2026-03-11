@@ -1,0 +1,150 @@
+---
+title: "Client Deployment"
+description: "Docker, Nginx, and environment-specific build configuration"
+---
+
+## Build process
+
+The client is built with Vue CLI (Webpack) and served as static files via Nginx.
+
+```bash
+# Development server with hot reload
+npm run serve
+
+# Production build
+npm run build
+
+# Environment-specific build
+npm run build -- --mode staging
+npm run build -- --mode testing
+npm run build -- --mode production
+```
+
+Build output goes to `dist/` — ~40 CSS chunks + ~44 JS chunks with content hashing for cache busting.
+
+## Docker
+
+**File:** `Dockerfile`
+
+Multi-stage build:
+
+```dockerfile
+# Stage 1: Build
+FROM node:10 as builder
+ARG node_env=production
+# npm install + environment-specific build
+# production  → npm run build -- --mode production
+# staging     → npm run build -- --mode staging
+# testing     → npm run build -- --mode testing
+
+# Stage 2: Serve
+FROM nginx
+ARG dev_stage=production
+COPY dist/ /app
+COPY nginx-${dev_stage}.conf /etc/nginx/nginx.conf
+```
+
+Build with:
+```bash
+docker build --build-arg node_env=staging --build-arg dev_stage=staging -t tutorbloc/client .
+```
+
+## Nginx configurations
+
+Six environment-specific Nginx configs:
+
+| Config file | Domain | SSL | API proxy |
+|------------|--------|-----|-----------|
+| `nginx-production.conf` | `tutorbloc.com` | Yes (Let's Encrypt) | No (API on separate domain) |
+| `nginx-staging.conf` | `staging.web.tutorbloc.com` | Yes (Let's Encrypt) | Yes → `http://api:9000/` |
+| `nginx-staging-initialise.conf` | Same | No (ACME only) | No |
+| `nginx-testing.conf` | `testing.web.tutorbloc.com` | Yes (Let's Encrypt) | Yes → `http://api:9000/` |
+| `nginx-testing-initialise.conf` | Same | No (ACME only) | No |
+| `nginx-development.conf` | `localhost` | No | Yes → `http://api:9000/` |
+
+### Common Nginx settings
+
+All configs share:
+- `worker_connections: 1024`
+- `sendfile: on`
+- `keepalive_timeout: 65`
+- `resolver: 127.0.0.11` (Docker DNS)
+- SPA routing: `try_files $uri $uri/ /index.html`
+
+### API proxy (staging/testing/dev)
+
+In non-production environments, Nginx proxies `/api` requests to the backend:
+
+```nginx
+location /api {
+    rewrite /api/(.*) /$1 break;
+    proxy_pass http://api:9000/;
+}
+```
+
+<Note>
+In **production**, the API lives on the same domain (`tutorbloc.com/api`) but is handled by a separate server/load balancer, not the client Nginx. The production Nginx config has no proxy rules.
+</Note>
+
+### SSL certificates
+
+Let's Encrypt certificates at:
+```
+/etc/letsencrypt/live/{domain}/fullchain.pem
+/etc/letsencrypt/live/{domain}/privkey.pem
+```
+
+The `-initialise` configs are used during first deployment to serve the ACME challenge before SSL is set up.
+
+## CI/CD
+
+<Warning>
+**No CI/CD pipeline found.** No Bitbucket Pipelines, GitHub Actions, or any other CI config exists in the client repo. Deployment appears to be manual Docker builds.
+</Warning>
+
+## Testing
+
+<Warning>
+**No test framework configured.** No Jest, Cypress, Playwright, or any test files exist. The `package.json` has no `test` script.
+</Warning>
+
+## Static assets
+
+### Public directory
+
+| File | Purpose |
+|------|---------|
+| `index.html` | HTML template with GTM, Crisp, OG tags, ActiveCampaign |
+| `robots.txt` | SEO crawl rules |
+| `sitemap.xml` | XML sitemap (16 URLs) |
+| `favicon.ico` | App icon (285KB) |
+| `.well-known/apple-developer-merchantid-domain-association` | Apple Pay domain verification |
+
+### index.html integrations
+
+The HTML template loads several third-party scripts:
+
+```html
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){...})(window,document,'script','dataLayer','GTM-WLHL7KM');</script>
+
+<!-- Crisp Chat -->
+<script>window.$crisp=[];window.CRISP_WEBSITE_ID="94b4b159-cf02-42a3-b30f-4b545f024fb2";</script>
+
+<!-- ActiveCampaign -->
+<script>vgo('setAccount', '610405066'); vgo('setTrackByDefault', true);</script>
+
+<!-- Add-to-Calendar Button -->
+<script src="https://cdn.jsdelivr.net/npm/add-to-calendar-button@2" async defer></script>
+```
+
+### Open Graph tags
+
+```html
+<meta property="og:title" content="Tutorbloc | Infrastructure for busy educators">
+<meta property="og:description" content="We give independent tutors modern tools...">
+<meta property="og:image" content="images/preview.png">
+<meta property="og:url" content="https://tutorbloc.com">
+```
+
+Twitter Card and Schema.org microdata also configured.
